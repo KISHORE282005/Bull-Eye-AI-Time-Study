@@ -1,11 +1,8 @@
+import base64
 import os
 import json
 from pathlib import Path
-import base64
 
-def get_base64(image_path):
-    with open(image_path, "rb") as img:
-        return base64.b64encode(img.read()).decode()
 import streamlit as st
 
 # ==========================================================
@@ -22,7 +19,7 @@ from gemini.report import save_report
 # ==========================================================
 
 st.set_page_config(
-    page_title="Industrial AI Time Study",
+    page_title="Bull.com",
     page_icon="🏭",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -100,6 +97,11 @@ div[data-testid="metric-container"]{
 # HEADER
 # ==========================================================
 
+
+def get_base64(path):
+    with open(path, "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
 logo = get_base64(r"C:\Users\kisho\Downloads\download.png")
 
 st.markdown(f"""
@@ -110,17 +112,17 @@ st.markdown(f"""
     align-items:center;
     background:white;
     padding:20px 40px;
-    border-radius:5px;
-    box-shadow:0px 2px 8px rgba(0,0,0,.03);    
+    border-radius:15px;
+    box-shadow:0px 3px 10px rgba(0,0,0,.08);
 }}
 
 .logo{{
-    width:200px;
+    width:320px;
 }}
 
 .separator{{
     width:2px;
-    height:50px;
+    height:120px;
     background:#d9d9d9;
     margin:0px 35px;
 }}
@@ -130,8 +132,8 @@ st.markdown(f"""
 }}
 
 .main-title{{
-    font-size:84px;
-    font-weight:500;
+    font-size:64px;
+    font-weight:800;
     color:#222;
     line-height:1;
 }}
@@ -161,20 +163,16 @@ src="data:image/png;base64,{logo}">
 <div class="title-container">
 
 <div class="main-title">
-Bull Eye 
+Bulls Eye
 </div>
 
 <div class="sub-title">
 AI Time Study
 </div>
 
-
-
-</div>
-
-</div>
-
 """, unsafe_allow_html=True)
+
+st.divider()
 
 # ==========================================================
 # SIDEBAR
@@ -236,12 +234,11 @@ if uploaded_video is not None:
     )
 
 st.divider()
-
 # ==========================================================
 # ANALYZE VIDEO
 # ==========================================================
 
-st.header(" AI Analysis")
+st.header("🚀 AI Analysis")
 
 col1, col2 = st.columns([3, 1])
 
@@ -383,7 +380,6 @@ if analyze:
 
 st.divider()
 
-
 if not JSON_FILE.exists():
 
     st.info(
@@ -441,7 +437,6 @@ if (va + nva) > 0:
 else:
 
     va_percent = 0
-
     # ==========================================================
 # EXECUTIVE KPI
 # ==========================================================
@@ -692,7 +687,59 @@ else:
 
 st.divider()
 
+# ==========================================================
+# TIME STUDY SUMMARY
+# ==========================================================
 
+st.subheader("📊 Time Study Summary")
+
+s1, s2, s3, s4 = st.columns(4)
+
+if len(activities) > 0:
+
+    s1.metric(
+
+        "Total Duration",
+
+        f"{df['Duration'].sum():.2f} sec"
+
+    )
+
+    s2.metric(
+
+        "Total TOCT",
+
+        f"{df['TOCT'].sum():.2f}"
+
+    )
+
+    s3.metric(
+
+        "Total NVA",
+
+        f"{df['NVA'].sum():.2f}"
+
+    )
+
+    s4.metric(
+
+        "Repeat NVA",
+
+        f"{df['R-NVA'].sum():.2f}"
+
+    )
+
+else:
+
+    s1.metric("Total Duration", "0")
+
+    s2.metric("TOCT", "0")
+
+    s3.metric("NVA", "0")
+
+    s4.metric("R-NVA", "0")
+
+st.divider()
 # ==========================================================
 # DOWNLOAD REPORTS
 # ==========================================================
@@ -834,4 +881,3 @@ Estimated Non Value Added Time : **{nva:.2f} seconds**
 """)
 
 st.divider()
-
