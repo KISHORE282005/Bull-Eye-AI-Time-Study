@@ -13,6 +13,7 @@ from gemini.uploader import upload_video
 from gemini.analyzer import analyze_video
 from gemini.parser import parse_json
 from gemini.report import save_report
+from utils.calculations import calculate_time_study
 
 # ==========================================================
 # PAGE CONFIG
@@ -320,19 +321,31 @@ if analyze:
 
         data = parse_json(response)
 
-        progress.progress(80)
+        progress.progress(70)
+
+
+        # STEP 4 - Industrial Engineering Calculation Engine
+# =====================================================
+
+        status.info("⚙ Step 4 / 5 : Calculating Industrial Time Study...")
+ 
+        log_box.write("Calculating Duration, Op1-Op5, WT1-WT5...")
+
+        data = calculate_time_study(data)
+
+        progress.progress(90)
 
         # ----------------------------------------------------
-        # STEP 4
+        # STEP 5
         # ----------------------------------------------------
 
-        status.info("💾 Step 4 / 5 : Saving reports...")
+        status.info("💾 Step 5 / 5 : Saving reports...")
 
         log_box.write("Generating Excel...")
 
         save_report(data)
 
-        progress.progress(95)
+        progress.progress(100)
 
         # ----------------------------------------------------
         # STEP 5
@@ -589,9 +602,11 @@ else:
 
         "process_operation",
 
-        "start_time",
+        "process_description",
 
-        "end_time",
+        "start_timestamp",
+
+        "end_timestamp",
 
         "duration",
 
@@ -638,10 +653,12 @@ else:
         "Process Name",
 
         "Process Operation",
+        
+        "Process Description",
 
-        "Start Time",
+        "Start Timestamp",
 
-        "End Time",
+        "End Timestamp",
 
         "Duration",
 

@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bulls Eye AI Time Study — System Schematic &amp; Workflow</title>
+<style>
+  :root{
+    --bg:#0b1120; --bg2:#0e1629; --panel:#141f36; --panel2:#1b2942;
+    --ink:#eaf1ff; --muted:#9db0d0; --faint:#6f83a6;
+    --line:#27385a; --line2:#33486e;
+    --red:#e31818; --redsoft:#ff5a5a;
+    --blue:#4c8dff; --green:#2fd07a; --amber:#f5a524; --violet:#b18bff; --cyan:#2bd9e8;
+    --shadow:0 6px 24px rgba(0,0,0,.35);
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#eef2f8; --bg2:#e6ecf5; --panel:#ffffff; --panel2:#f2f6fc;
+      --ink:#0f1a2e; --muted:#54658a; --faint:#8394b4;
+      --line:#d6e0ef; --line2:#c3d1e6;
+      --shadow:0 6px 20px rgba(30,50,90,.10);
+    }
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif;
+       background:linear-gradient(180deg,var(--bg),var(--bg2));color:var(--ink);line-height:1.6;
+       -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px 90px;}
+
+  /* ---------- HERO ---------- */
+  .hero{padding:46px 0 30px;border-bottom:1px solid var(--line);margin-bottom:10px;}
+  .hero .kicker{color:var(--redsoft);font-weight:700;font-size:12.5px;letter-spacing:2.5px;text-transform:uppercase;}
+  .hero h1{font-size:42px;font-weight:800;margin:8px 0 6px;letter-spacing:.3px;}
+  .hero h1 .red{color:var(--red);}
+  .hero p.lead{color:var(--muted);font-size:16px;max-width:760px;margin:6px 0 20px;}
+  .hero .meta{display:flex;flex-wrap:wrap;gap:10px;}
+  .chip{font-size:12px;font-weight:600;padding:6px 12px;border-radius:20px;background:var(--panel);border:1px solid var(--line);color:var(--muted);}
+  .chip b{color:var(--ink);}
+
+  /* ---------- TOC ---------- */
+  .toc{display:flex;flex-wrap:wrap;gap:8px;margin:22px 0 6px;}
+  .toc a{font-size:12.5px;text-decoration:none;color:var(--muted);background:var(--panel);border:1px solid var(--line);
+         padding:7px 13px;border-radius:8px;transition:.15s;}
+  .toc a:hover{color:var(--ink);border-color:var(--red);}
+
+  /* ---------- SECTION ---------- */
+  section{padding-top:26px;}
+  h2{font-size:23px;margin:40px 0 4px;display:flex;align-items:center;gap:12px;}
+  h2 .num{font-size:13px;font-weight:800;color:#fff;background:var(--red);width:30px;height:30px;border-radius:9px;
+          display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;box-shadow:var(--shadow);}
+  .sub{color:var(--muted);font-size:14px;margin:2px 0 20px 42px;max-width:820px;}
+
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin:18px 0 4px;font-size:12.5px;color:var(--muted);}
+  .dot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:6px;vertical-align:-1px;}
+  .scroll{overflow-x:auto;padding-bottom:6px;}
+
+  /* ---------- WORKFLOW (main vertical swimlane) ---------- */
+  .flow{position:relative;margin:6px 0 8px;}
+  .stage{display:grid;grid-template-columns:210px 1fr;gap:0;position:relative;}
+  .stage + .stage{margin-top:0;}
+  /* left rail */
+  .rail{position:relative;padding:28px 24px 34px 0;text-align:right;}
+  .rail .stg{font-size:11px;font-weight:700;letter-spacing:1.5px;color:var(--faint);text-transform:uppercase;}
+  .rail .who{font-size:14.5px;font-weight:700;margin-top:3px;}
+  .rail .file{font-size:11.5px;color:var(--cyan);margin-top:4px;font-family:"Consolas",monospace;}
+  /* connector column */
+  .stage::before{content:"";position:absolute;left:210px;top:0;bottom:0;width:2px;background:var(--line2);}
+  .knob{position:absolute;left:210px;top:30px;transform:translate(-50%,0);width:34px;height:34px;border-radius:50%;
+        background:var(--panel);border:2px solid var(--red);color:var(--red);display:flex;align-items:center;justify-content:center;
+        font-weight:800;font-size:14px;z-index:2;box-shadow:var(--shadow);}
+  .stage:last-child::before{bottom:auto;height:64px;}
+  /* right content */
+  .content{padding:20px 0 30px 46px;}
+  .cbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow);}
+  .cbox h3{margin:0 0 6px;font-size:16px;display:flex;align-items:center;gap:8px;}
+  .cbox p{margin:0 0 10px;font-size:13.5px;color:var(--muted);}
+  .cbox p:last-child{margin-bottom:0;}
+  .cbox .deep{font-size:13px;color:var(--ink);background:var(--panel2);border-left:3px solid var(--red);
+              border-radius:0 8px 8px 0;padding:10px 13px;margin:10px 0 4px;}
+  .cbox .deep b{color:var(--redsoft);}
+  .io{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;}
+  .io .pill{font-size:11.5px;font-family:"Consolas",monospace;padding:5px 10px;border-radius:7px;border:1px dashed var(--line2);color:var(--muted);}
+  .io .pill b{color:var(--cyan);font-weight:600;}
+  .io .in{border-color:var(--blue);}
+  .io .out{border-color:var(--green);}
+
+  /* ---------- ARCHITECTURE ---------- */
+  .layer{background:var(--panel);border:1px solid var(--line);border-left-width:5px;border-radius:12px;
+         padding:15px 18px;margin-bottom:12px;box-shadow:var(--shadow);}
+  .layer.ui{border-left-color:var(--blue);}
+  .layer.ai{border-left-color:var(--violet);}
+  .layer.calc{border-left-color:var(--green);}
+  .layer.io{border-left-color:var(--amber);}
+  .layer .head{display:flex;align-items:center;gap:12px;margin-bottom:6px;flex-wrap:wrap;}
+  .layer .badge{font-weight:700;font-size:12px;padding:4px 11px;border-radius:20px;}
+  .ui .badge{background:rgba(76,141,255,.14);color:var(--blue);}
+  .ai .badge{background:rgba(177,139,255,.14);color:var(--violet);}
+  .calc .badge{background:rgba(47,208,122,.14);color:var(--green);}
+  .io .badge{background:rgba(245,165,36,.14);color:var(--amber);}
+  .layer .role{font-size:14px;font-weight:600;}
+  .layer .files{color:var(--muted);font-size:12.5px;font-family:"Consolas",monospace;}
+  .layer .files code{color:var(--cyan);}
+
+  /* ---------- ENGINE ---------- */
+  .engine{display:grid;grid-template-columns:1fr;gap:0;max-width:760px;}
+  .enode{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 18px;box-shadow:var(--shadow);
+         display:grid;grid-template-columns:34px 1fr;gap:14px;align-items:start;}
+  .enode .st{width:30px;height:30px;border-radius:8px;background:rgba(47,208,122,.15);color:var(--green);font-weight:800;
+             display:flex;align-items:center;justify-content:center;font-size:14px;}
+  .enode b{font-size:14.5px;}
+  .enode .fn{font-family:"Consolas",monospace;color:var(--cyan);font-size:12px;}
+  .enode span.d{display:block;color:var(--muted);font-size:12.5px;margin-top:4px;}
+  .edown{color:var(--green);text-align:center;font-size:18px;margin:4px 0;padding-left:17px;}
+
+  /* ---------- CARDS ---------- */
+  .grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;border-top:4px solid var(--c);box-shadow:var(--shadow);}
+  .card h4{margin:0 0 4px;font-size:15px;color:var(--c);}
+  .card .role{font-size:12px;color:var(--faint);margin-bottom:9px;}
+  .card .kw{font-size:11.8px;color:var(--muted);}
+  .card .metric{margin-top:12px;font-size:12px;background:var(--panel2);border-radius:9px;padding:9px 11px;font-family:"Consolas",monospace;}
+  .card .metric .lab{font-family:"Segoe UI",sans-serif;color:var(--faint);display:block;margin-top:5px;}
+
+  /* ---------- TABLE ---------- */
+  table{border-collapse:collapse;width:100%;font-size:13px;min-width:620px;background:var(--panel);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);}
+  th,td{border-bottom:1px solid var(--line);padding:10px 14px;text-align:left;vertical-align:top;}
+  thead th{background:var(--panel2);font-size:12.5px;letter-spacing:.4px;}
+  tbody tr:last-child td{border-bottom:none;}
+  td code, th code{color:var(--cyan);font-size:12px;font-family:"Consolas",monospace;}
+  .center{text-align:center;}
+  .good{color:var(--green);font-weight:700;}
+  .bad{color:var(--redsoft);font-weight:700;}
+
+  /* ---------- WORKED EXAMPLE ---------- */
+  .ex{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 22px;box-shadow:var(--shadow);}
+  .ex h4{margin:0 0 12px;font-size:15px;}
+  .ex .row{display:flex;gap:14px;flex-wrap:wrap;align-items:stretch;}
+  .ex .mini{flex:1;min-width:200px;background:var(--panel2);border-radius:10px;padding:12px 14px;font-size:12.5px;}
+  .ex .mini b{font-size:12px;color:var(--faint);letter-spacing:.5px;text-transform:uppercase;display:block;margin-bottom:6px;}
+  .ex code{font-family:"Consolas",monospace;color:var(--cyan);}
+  .result{margin-top:16px;background:linear-gradient(120deg,rgba(227,24,24,.10),transparent);border:1px solid var(--line);
+           border-radius:10px;padding:14px 16px;font-size:13.5px;}
+  .result .big{font-size:26px;font-weight:800;color:var(--red);}
+
+  /* ---------- PRINCIPLES ---------- */
+  .principles{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;}
+  .pr{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 16px;box-shadow:var(--shadow);}
+  .pr .ic{font-size:20px;}
+  .pr b{display:block;margin:6px 0 3px;font-size:14px;}
+  .pr span{font-size:12.5px;color:var(--muted);}
+
+  footer{margin-top:56px;border-top:1px solid var(--line);padding-top:20px;color:var(--faint);font-size:12.5px;}
+  footer b{color:var(--muted);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ================= HERO ================= -->
+  <header class="hero">
+    <div class="kicker">Industrial AI Time Study · Bull Machine</div>
+    <h1>Bulls Eye <span class="red">AI Time Study</span></h1>
+    <p class="lead">System schematic and end-to-end workflow. A shop-floor video is analysed by Google Gemini,
+    then a deterministic Industrial-Engineering engine converts observed timestamps into cycle time, operator
+    utilisation, and Value-Added / Non-Value-Added waste metrics.</p>
+    <div class="meta">
+      <span class="chip">Stack <b>Streamlit · Gemini 2.5 Flash · Pandas · Plotly · OpenPyXL</b></span>
+      <span class="chip">Entry <b>app.py</b></span>
+      <span class="chip">Engine <b>utils/calculations.py</b></span>
+      <span class="chip">Output <b>JSON · Excel · CSV</b></span>
+    </div>
+    <nav class="toc">
+      <a href="#flow">1 · Workflow</a>
+      <a href="#arch">2 · Architecture</a>
+      <a href="#engine">3 · Engine</a>
+      <a href="#classify">4 · Classification</a>
+      <a href="#model">5 · Data Model</a>
+      <a href="#formulas">6 · Formulas</a>
+      <a href="#example">7 · Worked Example</a>
+      <a href="#errors">8 · Reliability</a>
+    </nav>
+  </header>
+
+  <div class="legend">
+    <span><span class="dot" style="background:var(--blue)"></span>Presentation / UI</span>
+    <span><span class="dot" style="background:var(--violet)"></span>AI Integration (Gemini)</span>
+    <span><span class="dot" style="background:var(--green)"></span>Calculation Engine</span>
+    <span><span class="dot" style="background:var(--amber)"></span>Persistence / Export</span>
+  </div>
+
+  <!-- ================= 1 · WORKFLOW ================= -->
+  <section id="flow">
+    <h2><span class="num">1</span>End-to-End Workflow</h2>
+    <p class="sub">Six stages, orchestrated by <code>app.py</code> inside a single guarded pipeline. Each stage below shows
+    <b>what happens</b>, the <b>deep mechanics</b>, and the <b>data in / data out</b>. The progress bar advances 10 → 25 → 60 → 70 → 90 → 100%.</p>
+
+    <div class="flow">
+
+      <!-- STAGE 1 -->
+      <div class="stage">
+        <div class="rail"><div class="stg">Stage 01 · Input</div><div class="who">Video Upload</div><div class="file">app.py</div></div>
+        <div class="knob">📹</div>
+        <div class="content"><div class="cbox">
+          <h3>Operator uploads a manufacturing video</h3>
+          <p>The user drops an <code>mp4 / avi / mov / mkv</code> file (≤ 2 GB) into the Streamlit uploader. The file is
+          written once to <code>videos/</code> and previewed inline; a size guard rejects anything over the 2 GB limit.</p>
+          <div class="deep"><b>Why it matters:</b> the raw video is the single source of truth. Everything downstream is
+          derived from it, so the app keeps the original on disk (idempotent save — it is not re-written if it already exists)
+          and stores the path in <code>st.session_state.video_path</code> so a Streamlit rerun never loses it.</div>
+          <div class="io">
+            <span class="pill in">IN <b>File (bytes)</b></span>
+            <span class="pill out">OUT <b>videos/&lt;name&gt;.mp4</b></span>
+          </div>
+        </div></div>
+      </div>
+
+      <!-- STAGE 2 -->
+      <div class="stage">
+        <div class="rail"><div class="stg">Stage 02 · Transfer</div><div class="who">Upload to Gemini</div><div class="file">gemini/uploader.py</div></div>
+        <div class="knob">📤</div>
+        <div class="content"><div class="cbox">
+          <h3>Push the video to the Gemini Files API</h3>
+          <p>The local file is uploaded to Google's servers via <code>client.files.upload()</code>. Because large videos are
+          transcoded asynchronously, the uploader <b>polls</b> the file handle every 5 seconds while its state is
+          <code>PROCESSING</code> and only returns once the media is <code>ACTIVE</code>.</p>
+          <div class="deep"><b>Deep detail:</b> Gemini cannot reason over a video until it has finished server-side
+          preparation. Returning too early would make the next step fail, so this blocking poll loop is the synchronisation
+          point between the app and the model.</div>
+          <div class="io">
+            <span class="pill in">IN <b>local path</b></span>
+            <span class="pill out">OUT <b>Gemini file handle (ACTIVE)</b></span>
+          </div>
+        </div></div>
+      </div>
+
+      <!-- STAGE 3 -->
+      <div class="stage">
+        <div class="rail"><div class="stg">Stage 03 · Intelligence</div><div class="who">AI Analysis</div><div class="file">analyzer.py · prompts.py</div></div>
+        <div class="knob">🤖</div>
+        <div class="content"><div class="cbox">
+          <h3>Gemini 2.5 Flash observes the process</h3>
+          <p>The video handle plus <code>TIME_STUDY_PROMPT</code> are sent to <code>generate_content()</code>. The prompt casts
+          the model as an <i>Industrial Engineering Expert</i> and constrains it with 12 rules: return <b>JSON only</b>, track
+          <b>only the main operator</b>, ignore background people, and split the work into discrete processes with
+          <code>start_timestamp</code> / <code>end_timestamp</code> in <code>HH:MM:SS.sss</code>.</p>
+          <div class="deep"><b>Critical design choice — AI observes, code computes.</b> Rule 11 explicitly <b>forbids</b> the
+          model from calculating Duration, Op1–Op5, WT1–WT5, TOCT, NVA or R-NVA. The AI only reports <i>what it saw and when</i>.
+          This keeps every number deterministic and auditable instead of trusting an LLM's arithmetic. The raw response is
+          saved to <code>output/gemini_response.txt</code> for debugging.</div>
+          <div class="io">
+            <span class="pill in">IN <b>video handle + prompt</b></span>
+            <span class="pill out">OUT <b>JSON text (processes + timestamps)</b></span>
+          </div>
+        </div></div>
+      </div>
+
+      <!-- STAGE 4 -->
+      <div class="stage">
+        <div class="rail"><div class="stg">Stage 04 · Validate</div><div class="who">Parse JSON</div><div class="file">gemini/parser.py</div></div>
+        <div class="knob">📑</div>
+        <div class="content"><div class="cbox">
+          <h3>Clean, parse and structurally validate</h3>
+          <p>Markdown fences (<code>```json</code>) are stripped, the text is run through <code>json.loads()</code>, and the
+          structure is checked: the <code>activities</code> array must exist and every activity must contain all six required
+          fields — otherwise a <code>ValueError</code> names the offending activity.</p>
+          <div class="deep"><b>Why a hard gate here:</b> LLM output is untrusted text. Failing fast with a precise error
+          (<i>"Activity 3 is missing 'start_timestamp'"</i>) prevents malformed data from silently corrupting the calculations
+          two steps later.</div>
+          <div class="io">
+            <span class="pill in">IN <b>JSON text</b></span>
+            <span class="pill out">OUT <b>validated Python dict</b></span>
+          </div>
+        </div></div>
+      </div>
+
+      <!-- STAGE 5 -->
+      <div class="stage">
+        <div class="rail"><div class="stg">Stage 05 · Compute</div><div class="who">Calculation Engine</div><div class="file">utils/calculations.py</div></div>
+        <div class="knob">⚙️</div>
+        <div class="content"><div class="cbox">
+          <h3>The Industrial-Engineering time-study engine</h3>
+          <p><code>calculate_time_study(data)</code> transforms bare timestamps into a full time study: it computes each
+          process <b>duration</b>, classifies the activity (Working / Waiting / Walking / Rework), routes time into
+          per-operator columns (<code>Op1–Op5</code> / <code>WT1–WT5</code>), derives <b>TOCT / NVA / R-NVA</b> per process,
+          and finally aggregates the <b>overall analysis</b> (cycle, working, walking, idle, VA, NVA).</p>
+          <div class="deep"><b>Deep detail:</b> the engine is a five-stage, idempotent pipeline — every output column is reset
+          to <code>0.0</code> before it is written, so re-running can never double-count. See <a href="#engine" style="color:var(--redsoft)">§3</a> for the internal flow.</div>
+          <div class="io">
+            <span class="pill in">IN <b>timestamps only</b></span>
+            <span class="pill out">OUT <b>enriched activities + overall_analysis</b></span>
+          </div>
+        </div></div>
+      </div>
+
+      <!-- STAGE 6 -->
+      <div class="stage">
+        <div class="rail"><div class="stg">Stage 06 · Deliver</div><div class="who">Report &amp; Dashboards</div><div class="file">report.py · pages/*.py</div></div>
+        <div class="knob">📊</div>
+        <div class="content"><div class="cbox">
+          <h3>Persist reports and render the dashboards</h3>
+          <p><code>save_report()</code> writes the canonical <code>output/time_study.json</code>, a styled multi-sheet
+          <b>Excel</b> workbook (branded header, auto-fit columns, frozen panes, an <i>Overall Analysis</i> sheet) and a
+          <b>CSV</b>. The app then reruns; every dashboard page reads the same JSON through <code>TimeStudyLoader</code> and
+          renders KPIs, a process timeline, lean-waste analysis, and download buttons.</p>
+          <div class="deep"><b>Single source of truth:</b> because all five pages read one JSON file, the UI always reflects
+          the <i>most recent</i> analysis. <code>TimeStudyLoader</code> back-fills any missing keys with safe defaults so a
+          partially-formed file never crashes a page.</div>
+          <div class="io">
+            <span class="pill in">IN <b>enriched data</b></span>
+            <span class="pill out">OUT <b>time_study.json · .xlsx · .csv · live dashboards</b></span>
+          </div>
+        </div></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= 2 · ARCHITECTURE ================= -->
+  <section id="arch">
+    <h2><span class="num">2</span>Architecture Layers</h2>
+    <p class="sub">Four cleanly separated layers. The guiding rule — <b>the AI observes, the Python code computes</b> — keeps the
+    intelligence layer and the calculation layer independent and testable.</p>
+
+    <div class="layer ui">
+      <div class="head"><span class="badge">Presentation</span><span class="role">Streamlit UI · upload · KPIs · charts · downloads</span></div>
+      <div class="files"><code>app.py</code> · <code>pages/1_Executive_Dashboard</code> · <code>2_Process_Timeline</code> · <code>3_Process_Details</code> · <code>4_Lean_analysis</code> · <code>5_AI_Report</code> · <code>utils/charts.py</code> · <code>utils/styles.py</code></div>
+    </div>
+    <div class="layer ai">
+      <div class="head"><span class="badge">AI Integration</span><span class="role">Talk to Gemini, obtain validated JSON of processes</span></div>
+      <div class="files"><code>gemini/config.py</code> (client + MODEL = gemini-2.5-flash) · <code>uploader.py</code> · <code>analyzer.py</code> · <code>prompts.py</code> · <code>parser.py</code></div>
+    </div>
+    <div class="layer calc">
+      <div class="head"><span class="badge">Calculation</span><span class="role">Deterministic time-study math + invariant checks</span></div>
+      <div class="files"><code>utils/calculations.py</code> (engine) · <code>utils/validator.py</code> (duration ≥ 0, NVA ≤ TOCT, R-NVA ≤ NVA)</div>
+    </div>
+    <div class="layer io">
+      <div class="head"><span class="badge">Persistence / Export</span><span class="role">Read/write JSON · Excel · CSV; load into DataFrames</span></div>
+      <div class="files"><code>gemini/report.py</code> · <code>utils/loader.py</code> (TimeStudyLoader) · <code>utils/export.py</code> · <code>output/time_study.json</code></div>
+    </div>
+  </section>
+
+  <!-- ================= 3 · ENGINE ================= -->
+  <section id="engine">
+    <h2><span class="num">3</span>Calculation Engine — Internal Flow</h2>
+    <p class="sub"><code>calculate_time_study(data)</code> runs five ordered stages over the <code>activities</code> list. Each stage is
+    idempotent (resets its columns before writing), so the engine is safe to re-run on already-processed data.</p>
+
+    <div class="engine">
+      <div class="enode"><div class="st">1</div><div>
+        <b>validate_activity()</b> · <span class="fn">timestamp_to_seconds → calculate_duration → classify_activity</span>
+        <span class="d">Parses <code>HH:MM:SS.sss</code> to seconds (bad input → 0, never raises). <code>duration = round(end − start, 3)</code>, floored at 0. Assigns <code>activity_type</code> and ensures required fields + <code>operator</code> default exist.</span>
+      </div></div>
+      <div class="edown">▼</div>
+      <div class="enode"><div class="st">2</div><div>
+        <b>update_operator_columns()</b>
+        <span class="d"><b>Working</b> duration → <code>op{N}</code> (productive). <b>Waiting / Walking / Rework</b> → <code>op_wt{N}</code> (lost time). N = operator number, default Operator 1, so single-operator studies fill only <code>op1</code> / <code>op_wt1</code>.</span>
+      </div></div>
+      <div class="edown">▼</div>
+      <div class="enode"><div class="st">3</div><div>
+        <b>calculate_process_metrics()</b>
+        <span class="d">Per process: <code>TOCT = duration</code> always; <code>NVA = duration</code> for non-Working; <code>R-NVA = duration</code> only for Rework. Guarantees the invariant <code>R-NVA ≤ NVA ≤ TOCT</code>.</span>
+      </div></div>
+      <div class="edown">▼</div>
+      <div class="enode"><div class="st">4</div><div>
+        <b>calculate_overall_analysis()</b>
+        <span class="d">Sums durations by type into the study totals: cycle time, working (= VA), walking, idle (waiting), and non-value-added (waiting + walking + rework).</span>
+      </div></div>
+      <div class="edown">▼</div>
+      <div class="enode"><div class="st">5</div><div>
+        <b>write back to <code>data</code></b>
+        <span class="d">Replaces <code>data["activities"]</code>, sets <code>data["overall_analysis"]</code> and <code>data["total_processes"]</code>. This dict is what <code>save_report()</code> persists.</span>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ================= 4 · CLASSIFICATION ================= -->
+  <section id="classify">
+    <h2><span class="num">4</span>Activity Classification → Metrics</h2>
+    <p class="sub">Case-insensitive substring match on <code>process_operation</code>, checked in order <b>Working → Waiting → Walking → Rework</b>
+    (first match wins; no match defaults to Working). The chosen type drives every downstream metric.</p>
+
+    <div class="grid4">
+      <div class="card" style="--c:var(--green)">
+        <h4>🔧 Working</h4><div class="role">Value-Added</div>
+        <div class="kw">Assembly · Bolt Tightening · Fastening · Pick / Place Part · Loading · Unloading · Machine Operation · Inspection · Testing · Welding · Grinding · Painting · Material Handling</div>
+        <div class="metric">TOCT = dur · NVA = 0 · R-NVA = 0<span class="lab">Counts toward VA and Op columns</span></div>
+      </div>
+      <div class="card" style="--c:var(--amber)">
+        <h4>⏳ Waiting</h4><div class="role">Idle waste</div>
+        <div class="kw">Waiting · Searching (Tool / Material) · Machine Delay · Material Delay · Talking · Idle</div>
+        <div class="metric">TOCT = dur · NVA = dur · R-NVA = 0<span class="lab">Feeds operator_idle_time</span></div>
+      </div>
+      <div class="card" style="--c:var(--cyan)">
+        <h4>🚶 Walking</h4><div class="role">Motion waste</div>
+        <div class="kw">Walking · Transportation · Move · Walking to Machine · Walking to Rack</div>
+        <div class="metric">TOCT = dur · NVA = dur · R-NVA = 0<span class="lab">Feeds walking_time</span></div>
+      </div>
+      <div class="card" style="--c:var(--redsoft)">
+        <h4>🔁 Rework</h4><div class="role">Repeat waste</div>
+        <div class="kw">Rework · Repeat Inspection · Repeat Tightening · Repeat Assembly</div>
+        <div class="metric">TOCT = dur · NVA = dur · R-NVA = dur<span class="lab">Only category that raises R-NVA</span></div>
+      </div>
+    </div>
+    <p class="sub" style="margin-top:16px">⚠️ <b>Ordering caveat:</b> because Working is tested first, <code>"Repeat Inspection"</code> matches
+    <i>Inspection</i> and classifies as Working, not Rework. Reorder the checks (or use more specific keywords) if Rework detection
+    for those phrases is required.</p>
+  </section>
+
+  <!-- ================= 5 · DATA MODEL ================= -->
+  <section id="model">
+    <h2><span class="num">5</span>Data Model — AI Output vs Engine Output</h2>
+    <p class="sub">Gemini supplies only the first column. The engine derives everything else — the boundary that keeps metrics deterministic.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>From Gemini (per activity)</th><th>Added by the engine</th><th>overall_analysis (recomputed)</th></tr></thead>
+        <tbody><tr>
+          <td><code>process_no</code><br><code>process_name</code><br><code>process_operation</code><br><code>process_description</code><br><code>start_timestamp</code><br><code>end_timestamp</code></td>
+          <td><code>duration</code><br><code>activity_type</code><br><code>operator</code><br><code>op1 … op5</code><br><code>op_wt1 … op_wt5</code><br><code>toct</code> · <code>nva</code> · <code>r_nva</code></td>
+          <td><code>cycle_time_seconds</code><br><code>operator_working_time</code><br><code>walking_time</code><br><code>operator_idle_time</code><br><code>estimated_value_added_time</code><br><code>estimated_non_value_added_time</code></td>
+        </tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= 6 · FORMULAS ================= -->
+  <section id="formulas">
+    <h2><span class="num">6</span>Key Formulas &amp; Invariants</h2>
+    <p class="sub">Every metric is a bucketed sum of process durations — no hidden weighting, fully reproducible.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Metric</th><th>Definition</th></tr></thead>
+        <tbody>
+          <tr><td><b>Duration</b></td><td><code>round(to_sec(end) − to_sec(start), 3)</code>, minimum 0</td></tr>
+          <tr><td><b>TOCT</b> <span style="color:var(--faint)">(Total Observed Cycle Time)</span></td><td>= duration (always) ⇒ <code>Σ TOCT = cycle time</code></td></tr>
+          <tr><td><b>NVA</b> <span style="color:var(--faint)">(Non-Value-Added)</span></td><td>= duration if type ∈ {Waiting, Walking, Rework}, else 0</td></tr>
+          <tr><td><b>R-NVA</b> <span style="color:var(--faint)">(Repeat NVA)</span></td><td>= duration if type = Rework, else 0</td></tr>
+          <tr><td><b>Value-Added (VA)</b></td><td>= Σ Working durations = <code>operator_working_time</code></td></tr>
+          <tr><td><b>Cycle time</b></td><td>= Σ of all durations</td></tr>
+          <tr><td class="center"><b>VA %</b></td><td><code>VA / (VA + NVA) × 100</code> &nbsp;(0 when VA + NVA = 0)</td></tr>
+          <tr><td><b>Invariant</b></td><td class="good"><code>R-NVA ≤ NVA ≤ TOCT = duration</code> &nbsp; — enforced by <code>utils/validator.py</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= 7 · WORKED EXAMPLE ================= -->
+  <section id="example">
+    <h2><span class="num">7</span>Worked Example</h2>
+    <p class="sub">Three activities returned by Gemini, traced through the whole engine.</p>
+    <div class="ex">
+      <h4>Input from Gemini</h4>
+      <div class="row">
+        <div class="mini"><b>Activity 1</b>Assembly<br><code>00:00:00.000 → 00:00:10.000</code></div>
+        <div class="mini"><b>Activity 2</b>Walking to Rack<br><code>00:00:10.000 → 00:00:14.000</code></div>
+        <div class="mini"><b>Activity 3</b>Waiting<br><code>00:00:14.000 → 00:00:20.000</code></div>
+      </div>
+
+      <h4 style="margin-top:20px">Engine trace</h4>
+      <div class="row">
+        <div class="mini"><b>Duration &amp; type</b>
+          1 → <code>10.0 s</code> Working<br>2 → <code>4.0 s</code> Walking<br>3 → <code>6.0 s</code> Waiting</div>
+        <div class="mini"><b>Operator cols</b>
+          1 → op1 = <code>10.0</code><br>2 → op_wt1 = <code>4.0</code><br>3 → op_wt1 = <code>6.0</code></div>
+        <div class="mini"><b>TOCT / NVA / R-NVA</b>
+          1 → <code>10 / 0 / 0</code><br>2 → <code>4 / 4 / 0</code><br>3 → <code>6 / 6 / 0</code></div>
+      </div>
+
+      <div class="result">
+        <div class="row" style="align-items:center">
+          <div style="flex:2;min-width:240px">
+            Cycle = <code>20.0 s</code> · Working (VA) = <code>10.0 s</code> · Walking = <code>4.0 s</code> · Idle = <code>6.0 s</code> · NVA = <code>10.0 s</code><br>
+            <span style="color:var(--muted)">Of a 20-second cycle, half is waste — 4 s motion + 6 s waiting are the primary improvement targets flagged on the dashboard.</span>
+          </div>
+          <div style="flex:1;min-width:140px;text-align:center">
+            <div class="big">50.0%</div><div style="color:var(--muted);font-size:12px">Value-Added (VA %)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 8 · RELIABILITY ================= -->
+  <section id="errors">
+    <h2><span class="num">8</span>Reliability &amp; Design Principles</h2>
+    <p class="sub">How the pipeline stays robust against LLM variance, large uploads, and API failure.</p>
+    <div class="principles">
+      <div class="pr"><div class="ic">🧮</div><b>AI observes, code computes</b><span>The model never does arithmetic (prompt rule 11); all metrics are deterministic Python — testable and auditable.</span></div>
+      <div class="pr"><div class="ic">🔁</div><b>Idempotent stages</b><span>Every engine stage resets its output columns before writing, so re-processing never double-counts.</span></div>
+      <div class="pr"><div class="ic">🛡️</div><b>Fail-fast parsing</b><span>Missing fields raise a precise <code>ValueError</code>; malformed timestamps degrade to 0 rather than crashing.</span></div>
+      <div class="pr"><div class="ic">🚦</div><b>Graceful API handling</b><span>Gemini <code>503</code> (busy) and <code>429</code> (quota) surface friendly retry messages; other errors show a full trace.</span></div>
+      <div class="pr"><div class="ic">📐</div><b>Enforced invariants</b><span><code>R-NVA ≤ NVA ≤ TOCT = duration</code> is validated, giving lean analysis a consistent basis.</span></div>
+      <div class="pr"><div class="ic">🗂️</div><b>Single source of truth</b><span>One <code>time_study.json</code> feeds every page; <code>TimeStudyLoader</code> back-fills defaults so no page crashes.</span></div>
+    </div>
+  </section>
+
+  <footer>
+    <b>Bulls Eye — AI Time Study</b> · System schematic generated from source.
+    Companion docs: <code>docs/TECHNICAL_DOCUMENTATION.md</code> · <code>docs/LOGIC_DOCUMENT.md</code>.<br>
+    Guiding principle — <i>AI observes, code computes</i>: every metric is a deterministic, auditable sum of process durations.
+  </footer>
+
+</div>
+</body>
+</html>

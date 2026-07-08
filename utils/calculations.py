@@ -3,38 +3,43 @@ from collections import defaultdict
 
 
 # ============================================================
-# TIME FUNCTIONS
+# TIMESTAMP TO SECONDS
 # ============================================================
 
-def time_to_seconds(time_string):
+def timestamp_to_seconds(timestamp):
     """
-    Convert HH:MM:SS.xx into seconds
+    Convert timestamp (HH:MM:SS.sss) into seconds.
+
+    Example:
+    00:01:15.250 -> 75.25
     """
 
-    if not time_string:
+    if not timestamp:
         return 0.0
 
     try:
 
-        if "." in time_string:
+        timestamp = str(timestamp).strip()
+
+        if "." in timestamp:
 
             t = datetime.strptime(
-                time_string,
+                timestamp,
                 "%H:%M:%S.%f"
             )
 
         else:
 
             t = datetime.strptime(
-                time_string,
+                timestamp,
                 "%H:%M:%S"
             )
 
         return (
-            t.hour * 3600 +
-            t.minute * 60 +
-            t.second +
-            t.microsecond / 1000000
+            t.hour * 3600
+            + t.minute * 60
+            + t.second
+            + (t.microsecond / 1000000)
         )
 
     except Exception:
@@ -43,10 +48,13 @@ def time_to_seconds(time_string):
 
 
 # ============================================================
-# SECONDS TO TIME
+# SECONDS TO TIMESTAMP
 # ============================================================
 
-def seconds_to_time(seconds):
+def seconds_to_timestamp(seconds):
+    """
+    Convert seconds back into HH:MM:SS.sss
+    """
 
     if seconds < 0:
         seconds = 0
@@ -59,28 +67,33 @@ def seconds_to_time(seconds):
 
     seconds %= 60
 
-    return f"{hours:02}:{minutes:02}:{seconds:05.2f}"
+    return f"{hours:02}:{minutes:02}:{seconds:06.3f}"
 
 
 # ============================================================
-# DURATION
+# CALCULATE DURATION
 # ============================================================
 
-def calculate_duration(start_time, end_time):
+def calculate_duration(start_timestamp, end_timestamp):
 
-    start = time_to_seconds(start_time)
+    print("--------------------------------")
+    print("Start :", start_timestamp)
+    print("End   :", end_timestamp)
 
-    end = time_to_seconds(end_time)
+    start = timestamp_to_seconds(start_timestamp)
+    end = timestamp_to_seconds(end_timestamp)
 
-    duration = round(end - start, 2)
+    print("Start Seconds :", start)
+    print("End Seconds   :", end)
+
+    duration = round(end - start, 3)
+
+    print("Duration :", duration)
 
     if duration < 0:
-
         duration = 0
 
     return duration
-
-
 # ============================================================
 # ACTIVITY GROUPS
 # ============================================================
@@ -88,31 +101,18 @@ def calculate_duration(start_time, end_time):
 WORKING = [
 
     "Assembly",
-
     "Bolt Tightening",
-
     "Fastening",
-
     "Pick Part",
-
     "Place Part",
-
     "Loading",
-
     "Unloading",
-
     "Machine Operation",
-
     "Inspection",
-
     "Testing",
-
     "Welding",
-
     "Grinding",
-
     "Painting",
-
     "Material Handling"
 
 ]
@@ -121,19 +121,12 @@ WORKING = [
 WAITING = [
 
     "Waiting",
-
     "Searching",
-
     "Searching Tool",
-
     "Searching Material",
-
     "Machine Delay",
-
     "Material Delay",
-
     "Talking",
-
     "Idle"
 
 ]
@@ -142,12 +135,10 @@ WAITING = [
 WALKING = [
 
     "Walking",
-
     "Transportation",
-
     "Move",
-
-    "Walking to Machine"
+    "Walking to Machine",
+    "Walking to Rack"
 
 ]
 
@@ -155,47 +146,65 @@ WALKING = [
 REWORK = [
 
     "Rework",
-
     "Repeat Inspection",
-
     "Repeat Tightening",
-
     "Repeat Assembly"
 
 ]
 
 
 # ============================================================
-# ACTIVITY TYPE
+# ACTIVITY CLASSIFICATION
 # ============================================================
 
-def classify_activity(activity_name):
+def classify_activity(process_operation):
+    """
+    Classify process operation into
+    Working / Waiting / Walking / Rework
+    """
 
-    if not activity_name:
-        return "Unknown"
+    if not process_operation:
+        return "Working"
 
-    activity_name = activity_name.lower()
+    operation = process_operation.lower().strip()
+
+    # -----------------------------
+    # Working
+    # -----------------------------
 
     for item in WORKING:
 
-        if item.lower() in activity_name:
+        if item.lower() in operation:
             return "Working"
+
+    # -----------------------------
+    # Waiting
+    # -----------------------------
 
     for item in WAITING:
 
-        if item.lower() in activity_name:
+        if item.lower() in operation:
             return "Waiting"
+
+    # -----------------------------
+    # Walking
+    # -----------------------------
 
     for item in WALKING:
 
-        if item.lower() in activity_name:
+        if item.lower() in operation:
             return "Walking"
+
+    # -----------------------------
+    # Rework
+    # -----------------------------
 
     for item in REWORK:
 
-        if item.lower() in activity_name:
+        if item.lower() in operation:
             return "Rework"
 
+    # Default
     return "Working"
 
 
@@ -204,192 +213,148 @@ def classify_activity(activity_name):
 # ============================================================
 
 def validate_activity(activity):
+    """
+    Validate one activity returned by Gemini
+    and prepare it for calculation.
+    """
 
-    start = activity.get("start_time", "00:00:00")
+    # -----------------------------------
+    # Read timestamps from Gemini
+    # -----------------------------------
 
-    end = activity.get("end_time", "00:00:00")
+    start_timestamp = activity.get(
+        "start_timestamp",
+        "00:00:00.000"
+    )
 
-    duration = calculate_duration(start, end)
+    end_timestamp = activity.get(
+        "end_timestamp",
+        "00:00:00.000"
+    )
+
+    # -----------------------------------
+    # Calculate duration
+    # -----------------------------------
+
+    duration = calculate_duration(
+        start_timestamp,
+        end_timestamp
+    )
 
     activity["duration"] = duration
+
+    # -----------------------------------
+    # Classify activity
+    # -----------------------------------
 
     activity["activity_type"] = classify_activity(
 
         activity.get(
-
             "process_operation",
-
             ""
-
         )
 
     )
+
+    # -----------------------------------
+    # Ensure required fields exist
+    # -----------------------------------
+
+    activity.setdefault("process_no", 0)
+    activity.setdefault("process_name", "")
+    activity.setdefault("process_operation", "")
+    activity.setdefault("process_description", "")
+
+    activity.setdefault("start_timestamp", start_timestamp)
+    activity.setdefault("end_timestamp", end_timestamp)
+
+    activity.setdefault("operator", "Operator 1")
 
     return activity
 # ============================================================
 # OPERATOR CALCULATIONS
 # ============================================================
 
-def calculate_operator_times(activities):
+def update_operator_columns(activities):
     """
-    Calculate operator working time and waiting time.
+    Fill Op1-Op5 and WT1-WT5 for EACH PROCESS.
+    Each row stores only that process duration.
     """
-
-    operator_work = defaultdict(float)
-    operator_wait = defaultdict(float)
 
     for activity in activities:
-
-        activity = validate_activity(activity)
 
         operator = activity.get(
             "operator",
             "Operator 1"
         )
 
-        duration = activity["duration"]
+        duration = activity.get(
+            "duration",
+            0
+        )
 
-        activity_type = activity["activity_type"]
+        activity_type = activity.get(
+            "activity_type",
+            "Working"
+        )
 
-        # -----------------------------
-        # Working Activities
-        # -----------------------------
+        # ------------------------------------
+        # Reset all columns
+        # ------------------------------------
+
+        activity["op1"] = 0.0
+        activity["op2"] = 0.0
+        activity["op3"] = 0.0
+        activity["op4"] = 0.0
+        activity["op5"] = 0.0
+
+        activity["op_wt1"] = 0.0
+        activity["op_wt2"] = 0.0
+        activity["op_wt3"] = 0.0
+        activity["op_wt4"] = 0.0
+        activity["op_wt5"] = 0.0
+
+        # ------------------------------------
+        # Working Time
+        # ------------------------------------
 
         if activity_type == "Working":
 
-            operator_work[operator] += duration
+            if operator == "Operator 1":
+                activity["op1"] = round(duration, 3)
 
-        # -----------------------------
-        # Waiting Activities
-        # -----------------------------
+            elif operator == "Operator 2":
+                activity["op2"] = round(duration, 3)
 
-        elif activity_type in [
+            elif operator == "Operator 3":
+                activity["op3"] = round(duration, 3)
 
-            "Waiting",
+            elif operator == "Operator 4":
+                activity["op4"] = round(duration, 3)
 
-            "Walking",
+            elif operator == "Operator 5":
+                activity["op5"] = round(duration, 3)
 
-            "Rework"
+        # ------------------------------------
+        # Waiting / Walking / Rework
+        # ------------------------------------
 
-        ]:
+        else:
 
-            operator_wait[operator] += duration
+            if operator == "Operator 1":
+                activity["op_wt1"] = round(duration, 3)
 
-    return operator_work, operator_wait
+            elif operator == "Operator 2":
+                activity["op_wt2"] = round(duration, 3)
 
+            elif operator == "Operator 3":
+                activity["op_wt3"] = round(duration, 3)
 
-# ============================================================
-# UPDATE OPERATOR COLUMNS
-# ============================================================
+            elif operator == "Operator 4":
+                activity["op_wt4"] = round(duration, 3)
 
-def update_operator_columns(activities):
-
-    operator_work, operator_wait = calculate_operator_times(
-        activities
-    )
-
-    for activity in activities:
-
-        operator = activity.get(
-            "operator",
-            "Operator 1"
-        )
-
-        # ---------------------------------
-        # Reset Columns
-        # ---------------------------------
-
-        activity["op1"] = 0
-        activity["op2"] = 0
-        activity["op3"] = 0
-        activity["op4"] = 0
-        activity["op5"] = 0
-
-        activity["op_wt1"] = 0
-        activity["op_wt2"] = 0
-        activity["op_wt3"] = 0
-        activity["op_wt4"] = 0
-        activity["op_wt5"] = 0
-
-        # ---------------------------------
-        # Operator 1
-        # ---------------------------------
-
-        if operator == "Operator 1":
-
-            activity["op1"] = round(
-                operator_work["Operator 1"],
-                2
-            )
-
-            activity["op_wt1"] = round(
-                operator_wait["Operator 1"],
-                2
-            )
-
-        # ---------------------------------
-        # Operator 2
-        # ---------------------------------
-
-        elif operator == "Operator 2":
-
-            activity["op2"] = round(
-                operator_work["Operator 2"],
-                2
-            )
-
-            activity["op_wt2"] = round(
-                operator_wait["Operator 2"],
-                2
-            )
-
-        # ---------------------------------
-        # Operator 3
-        # ---------------------------------
-
-        elif operator == "Operator 3":
-
-            activity["op3"] = round(
-                operator_work["Operator 3"],
-                2
-            )
-
-            activity["op_wt3"] = round(
-                operator_wait["Operator 3"],
-                2
-            )
-
-        # ---------------------------------
-        # Operator 4
-        # ---------------------------------
-
-        elif operator == "Operator 4":
-
-            activity["op4"] = round(
-                operator_work["Operator 4"],
-                2
-            )
-
-            activity["op_wt4"] = round(
-                operator_wait["Operator 4"],
-                2
-            )
-
-        # ---------------------------------
-        # Operator 5
-        # ---------------------------------
-
-        elif operator == "Operator 5":
-
-            activity["op5"] = round(
-                operator_work["Operator 5"],
-                2
-            )
-
-            activity["op_wt5"] = round(
-                operator_wait["Operator 5"],
-                2
-            )
+            elif operator == "Operator 5":
+                activity["op_wt5"] = round(duration, 3)
 
     return activities
 # ============================================================
@@ -398,76 +363,70 @@ def update_operator_columns(activities):
 
 def calculate_process_metrics(activities):
     """
-    Calculate TOCT, NVA and R-NVA for each activity row.
+    Calculate TOCT, NVA and R-NVA
+    for every individual process.
     """
 
     for activity in activities:
 
-        activity = validate_activity(activity)
+        duration = activity.get("duration", 0)
 
-        duration = activity["duration"]
+        activity_type = activity.get(
+            "activity_type",
+            "Working"
+        )
 
-        activity_type = activity["activity_type"]
-
-        # ------------------------------------
+        # ----------------------------------------
         # Reset values
-        # ------------------------------------
+        # ----------------------------------------
 
         activity["toct"] = 0.0
         activity["nva"] = 0.0
         activity["r_nva"] = 0.0
 
-        # ------------------------------------
-        # Working Activity
-        # ------------------------------------
+        # ----------------------------------------
+        # Working
+        # ----------------------------------------
 
         if activity_type == "Working":
 
-            activity["toct"] = round(duration, 2)
+            activity["toct"] = round(duration,3)
 
-            activity["nva"] = 0.0
-
-            activity["r_nva"] = 0.0
-
-        # ------------------------------------
+        # ----------------------------------------
         # Waiting
-        # ------------------------------------
+        # ----------------------------------------
 
         elif activity_type == "Waiting":
 
-            activity["toct"] = round(duration, 2)
+            activity["toct"] = round(duration,3)
 
-            activity["nva"] = round(duration, 2)
+            activity["nva"] = round(duration,3)
 
-            activity["r_nva"] = 0.0
-
-        # ------------------------------------
+        # ----------------------------------------
         # Walking
-        # ------------------------------------
+        # ----------------------------------------
 
         elif activity_type == "Walking":
 
-            activity["toct"] = round(duration, 2)
+            activity["toct"] = round(duration,3)
 
-            activity["nva"] = round(duration, 2)
+            activity["nva"] = round(duration,3)
 
-            activity["r_nva"] = 0.0
-
-        # ------------------------------------
+        # ----------------------------------------
         # Rework
-        # ------------------------------------
+        # ----------------------------------------
 
         elif activity_type == "Rework":
 
-            activity["toct"] = round(duration, 2)
+            activity["toct"] = round(duration,3)
 
-            activity["nva"] = round(duration, 2)
+            activity["nva"] = round(duration,3)
 
-            activity["r_nva"] = round(duration, 2)
+            activity["r_nva"] = round(duration,3)
 
         else:
 
-            activity["toct"] = round(duration, 2)
+            activity["toct"] = round(duration,3)
 
     return activities
 
@@ -480,106 +439,154 @@ def calculate_overall_analysis(activities):
 
     overall = {
 
-        "cycle_time_seconds": 0,
+        "cycle_time_seconds":0,
 
-        "operator_working_time": 0,
+        "operator_working_time":0,
 
-        "walking_time": 0,
+        "walking_time":0,
 
-        "operator_idle_time": 0,
+        "operator_idle_time":0,
 
-        "inspection_time": 0,
+        "inspection_time":0,
 
-        "estimated_value_added_time": 0,
+        "estimated_value_added_time":0,
 
-        "estimated_non_value_added_time": 0
+        "estimated_non_value_added_time":0
 
     }
 
-    total_cycle = 0
-
-    total_working = 0
-
-    total_walking = 0
-
-    total_waiting = 0
-
-    total_nva = 0
+    total_cycle = 0.0
+    total_working = 0.0
+    total_waiting = 0.0
+    total_walking = 0.0
+    total_rework = 0.0
+    total_nva = 0.0
 
     for activity in activities:
 
-        duration = activity["duration"]
+        duration = activity.get(
+            "duration",
+            0
+        )
 
         total_cycle += duration
 
-        if activity["activity_type"] == "Working":
+        activity_type = activity.get(
+            "activity_type",
+            "Working"
+        )
+
+        # ----------------------------------------
+
+        if activity_type == "Working":
 
             total_working += duration
 
-        elif activity["activity_type"] == "Walking":
-
-            total_walking += duration
-
-            total_nva += duration
-
-        elif activity["activity_type"] == "Waiting":
+        elif activity_type == "Waiting":
 
             total_waiting += duration
 
             total_nva += duration
 
-        elif activity["activity_type"] == "Rework":
+        elif activity_type == "Walking":
+
+            total_walking += duration
 
             total_nva += duration
 
-    overall["cycle_time_seconds"] = round(total_cycle,2)
+        elif activity_type == "Rework":
 
-    overall["operator_working_time"] = round(total_working,2)
+            total_rework += duration
 
-    overall["walking_time"] = round(total_walking,2)
+            total_nva += duration
 
-    overall["operator_idle_time"] = round(total_waiting,2)
+    overall["cycle_time_seconds"] = round(total_cycle,3)
 
-    overall["estimated_value_added_time"] = round(total_working,2)
+    overall["operator_working_time"] = round(total_working,3)
 
-    overall["estimated_non_value_added_time"] = round(total_nva,2)
+    overall["walking_time"] = round(total_walking,3)
+
+    overall["operator_idle_time"] = round(total_waiting,3)
+
+    overall["inspection_time"] = 0.0
+
+    overall["estimated_value_added_time"] = round(
+        total_working,
+        3
+    )
+
+    overall["estimated_non_value_added_time"] = round(
+        total_nva,
+        3
+    )
 
     return overall
-
-
 # ============================================================
-# MAIN ENGINE
+# MAIN TIME STUDY ENGINE
 # ============================================================
 
 def calculate_time_study(data):
+    """
+    Complete Industrial AI Time Study Engine.
 
-    activities = data["activities"]
+    Workflow:
+        1. Validate Gemini output
+        2. Calculate Duration
+        3. Fill Operator Columns
+        4. Calculate TOCT / NVA / R-NVA
+        5. Calculate Overall Summary
+    """
 
-    # Validate activities
-    activities = [
-        validate_activity(a)
-        for a in activities
-    ]
+    # -----------------------------------------
+    # Read Activities
+    # -----------------------------------------
 
-    # Fill Op1-WT5
-    activities = update_operator_columns(
-        activities
+    activities = data.get("activities", [])
+
+    validated = []
+
+    # -----------------------------------------
+    # Validate every activity
+    # -----------------------------------------
+
+    for activity in activities:
+
+        validated.append(
+            validate_activity(activity)
+        )
+
+    # -----------------------------------------
+    # Update Operator Columns
+    # -----------------------------------------
+
+    validated = update_operator_columns(
+        validated
     )
 
-    # Fill TOCT/NVA/R-NVA
-    activities = calculate_process_metrics(
-        activities
+    # -----------------------------------------
+    # Calculate Process Metrics
+    # -----------------------------------------
+
+    validated = calculate_process_metrics(
+        validated
     )
 
-    # Overall Summary
+    # -----------------------------------------
+    # Overall Analysis
+    # -----------------------------------------
+
     overall = calculate_overall_analysis(
-        activities
+        validated
     )
 
-    data["activities"] = activities
+    # -----------------------------------------
+    # Save Results
+    # -----------------------------------------
+
+    data["activities"] = validated
 
     data["overall_analysis"] = overall
 
-    data["total_processes"] = len(activities)
+    data["total_processes"] = len(validated)
 
     return data

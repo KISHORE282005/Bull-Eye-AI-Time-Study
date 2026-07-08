@@ -18,27 +18,16 @@ Required JSON Schema:
 "activities":[
 {
     "process_no":1,
+
     "process_name":"",
+
     "process_operation":"",
-    "start_time":"00:00:00",
-    "end_time":"00:00:15",
-    "duration":15,
 
-    "op1":0.25,
-    "op2":0.05,
-    "op3":0.00,
-    "op4":0.00,
-    "op5":0.00,
+    "process_description":"",
 
-    "op_wt1":0.00,
-    "op_wt2":0.00,
-    "op_wt3":0.00,
-    "op_wt4":0.00,
-    "op_wt5":0.00,
+    "start_timestamp":"00:00:00.000",
 
-    "toct":0.30,
-    "nva":0.02,
-    "r_nva":0.01
+    "end_timestamp":"00:00:00.000"
 }
 ]
 
@@ -68,24 +57,45 @@ Required JSON Schema:
 
 }
 
+
+
 Rules:
 
-Return ONLY JSON.
+1. Return ONLY valid JSON.
 
-No markdown.
+2. Do not return markdown.
 
-No explanation.
+3. Do not return explanations.
 
-Use mm:ss timestamps.
+4. Analyze ONLY the main operator performing the manufacturing process.
 
-Focus only on the operator.
+5. Ignore background people and unrelated movements.
 
-Ignore background people.
+6. Identify each manufacturing process separately.
 
-Estimate activity durations.
+7. For every process return:
 
-Identify Lean wastes.
+- process_no
+- process_name
+- process_operation
+- process_description
+- start_timestamp
+- end_timestamp
 
-Identify VA/NVA.
+8. Use timestamps in the format HH:MM:SS.sss.
+
+9. The start_timestamp must represent when the operator actually begins the process.
+
+10. The end_timestamp must represent when the operator completes the process.
+
+11. Do NOT calculate:
+- Duration
+- Op1–Op5
+- WT1–WT5
+- TOCT
+- NVA
+- R-NVA
+
+12. Only observe the video and return the timestamps and process information.
 
 """

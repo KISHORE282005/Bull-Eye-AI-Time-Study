@@ -19,10 +19,12 @@ CSV_FILE = OUTPUT / "activities.csv"
 
 def save_report(data):
 
-    # ---------------------------------------------
+    # -------------------------------------------------
     # Save JSON
-    # ---------------------------------------------
+    # -------------------------------------------------
+
     with open(JSON_FILE, "w", encoding="utf-8") as f:
+
         json.dump(
             data,
             f,
@@ -30,20 +32,32 @@ def save_report(data):
             ensure_ascii=False
         )
 
-    # ---------------------------------------------
-    # Create DataFrame
-    # ---------------------------------------------
-    activities = pd.DataFrame(data["activities"])
+    # -------------------------------------------------
+    # Activities DataFrame
+    # -------------------------------------------------
 
-    # ---------------------------------------------
-    # Required Column Order
-    # ---------------------------------------------
+    activities = pd.DataFrame(
+        data.get("activities", [])
+    )
+
+    # -------------------------------------------------
+    # Required Columns
+    # -------------------------------------------------
+
     required_columns = [
+
         "process_no",
+
         "process_name",
+
         "process_operation",
-        "start_time",
-        "end_time",
+
+        "process_description",
+
+        "start_timestamp",
+
+        "end_timestamp",
+
         "duration",
 
         "op1",
@@ -59,57 +73,108 @@ def save_report(data):
         "op_wt5",
 
         "toct",
+
         "nva",
+
         "r_nva"
+
     ]
 
-    # ---------------------------------------------
-    # Add Missing Columns Automatically
-    # ---------------------------------------------
-    for col in required_columns:
-        if col not in activities.columns:
-            activities[col] = ""
+    # -------------------------------------------------
+    # Add Missing Columns
+    # -------------------------------------------------
 
-    # ---------------------------------------------
-    # Reorder Columns
-    # ---------------------------------------------
-    activities = activities[required_columns]
+    for column in required_columns:
 
-    # ---------------------------------------------
-    # Rename Columns for Excel
-    # ---------------------------------------------
+        if column not in activities.columns:
+
+            if column in [
+
+                "duration",
+
+                "op1",
+                "op2",
+                "op3",
+                "op4",
+                "op5",
+
+                "op_wt1",
+                "op_wt2",
+                "op_wt3",
+                "op_wt4",
+                "op_wt5",
+
+                "toct",
+                "nva",
+                "r_nva"
+
+            ]:
+
+                activities[column] = 0.0
+
+            else:
+
+                activities[column] = ""
+
+    # -------------------------------------------------
+    # Arrange Columns
+    # -------------------------------------------------
+
+    activities = activities[
+        required_columns
+    ]
+
+    # -------------------------------------------------
+    # Rename Excel Columns
+    # -------------------------------------------------
+
     activities.columns = [
+
         "Process No",
+
         "Process Name",
+
         "Process Operation",
-        "Start Time",
-        "End Time",
-        "Duration",
 
-        "Op1 (min)",
-        "Op2 (min)",
-        "Op3 (min)",
-        "Op4 (min)",
-        "Op5 (min)",
+        "Process Description",
 
-        "Op WT1 (min)",
-        "Op WT2 (min)",
-        "Op WT3 (min)",
-        "Op WT4 (min)",
-        "Op WT5 (min)",
+        "Start Timestamp",
 
-        "TOCT (min)",
-        "NVA (min)",
-        "R-NVA (min)"
+        "End Timestamp",
+
+        "Duration (sec)",
+
+        "Op1 (sec)",
+        "Op2 (sec)",
+        "Op3 (sec)",
+        "Op4 (sec)",
+        "Op5 (sec)",
+
+        "WT1 (sec)",
+        "WT2 (sec)",
+        "WT3 (sec)",
+        "WT4 (sec)",
+        "WT5 (sec)",
+
+        "TOCT (sec)",
+
+        "NVA (sec)",
+
+        "R-NVA (sec)"
+
     ]
-
-    # ---------------------------------------------
+    # -------------------------------------------------
     # Save Excel
-    # ---------------------------------------------
+    # -------------------------------------------------
+
     with pd.ExcelWriter(
         EXCEL_FILE,
         engine="openpyxl"
     ) as writer:
+
+        # ---------------------------------------------
+        # Time Study Sheet
+        # ---------------------------------------------
 
         activities.to_excel(
             writer,
@@ -120,29 +185,138 @@ def save_report(data):
         workbook = writer.book
         worksheet = writer.sheets["Time Study"]
 
-        # Make header bold
-        from openpyxl.styles import Font
+        from openpyxl.styles import Font, PatternFill, Alignment
 
-        bold_font = Font(bold=True)
+        # ---------------------------------------------
+        # Header Style
+        # ---------------------------------------------
+
+        header_font = Font(
+            bold=True,
+            color="FFFFFF"
+        )
+
+        header_fill = PatternFill(
+            fill_type="solid",
+            fgColor="C00000"
+        )
+
+        center = Alignment(
+            horizontal="center",
+            vertical="center"
+        )
 
         for cell in worksheet[1]:
-            cell.font = bold_font
 
-        # Auto-fit columns
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = center
+
+        # ---------------------------------------------
+        # Auto Fit Columns
+        # ---------------------------------------------
+
         for column_cells in worksheet.columns:
-            length = max(len(str(cell.value)) if cell.value else 0 for cell in column_cells)
-            worksheet.column_dimensions[column_cells[0].column_letter].width = length + 5
 
-    # ---------------------------------------------
+            length = max(
+                len(str(cell.value))
+                if cell.value else 0
+                for cell in column_cells
+            )
+
+            worksheet.column_dimensions[
+                column_cells[0].column_letter
+            ].width = length + 5
+
+        # ---------------------------------------------
+        # Freeze Header
+        # ---------------------------------------------
+
+        worksheet.freeze_panes = "A2"
+
+        # ---------------------------------------------
+        # Overall Analysis Sheet
+        # ---------------------------------------------
+
+        overall = pd.DataFrame(
+
+            list(
+                data.get(
+                    "overall_analysis",
+                    {}
+                ).items()
+            ),
+
+            columns=[
+                "Metric",
+                "Value"
+            ]
+
+        )
+
+        overall.to_excel(
+
+            writer,
+
+            sheet_name="Overall Analysis",
+
+            index=False
+
+        )
+
+        overall_sheet = writer.sheets[
+            "Overall Analysis"
+        ]
+
+        for cell in overall_sheet[1]:
+
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = center
+
+        for column_cells in overall_sheet.columns:
+
+            length = max(
+
+                len(str(cell.value))
+                if cell.value else 0
+
+                for cell in column_cells
+
+            )
+
+            overall_sheet.column_dimensions[
+                column_cells[0].column_letter
+            ].width = length + 5
+
+    # -------------------------------------------------
     # Save CSV
-    # ---------------------------------------------
+    # -------------------------------------------------
+
     activities.to_csv(
+
         CSV_FILE,
+
         index=False
+
     )
 
-    print("✅ JSON Saved :", JSON_FILE)
-    print("✅ Excel Saved:", EXCEL_FILE)
-    print("✅ CSV Saved  :", CSV_FILE)
+    # -------------------------------------------------
+    # Console Messages
+    # -------------------------------------------------
+
+    print("=" * 60)
+
+    print("Industrial AI Time Study Report Generated")
+
+    print("=" * 60)
+
+    print(f"JSON  : {JSON_FILE}")
+
+    print(f"Excel : {EXCEL_FILE}")
+
+    print(f"CSV   : {CSV_FILE}")
+
+    print("=" * 60)
 
     return activities
