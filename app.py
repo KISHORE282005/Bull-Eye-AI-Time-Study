@@ -103,7 +103,7 @@ def get_base64(path):
     with open(path, "rb") as f:
         return base64.b64encode(f.read()).decode()
 
-logo = get_base64(r"C:\Users\kisho\Downloads\download.png")
+logo = get_base64(BASE_DIR / "assets" / "logo.png")
 
 st.markdown(f"""
 <style>
@@ -510,25 +510,7 @@ st.info(
 
 st.divider()
 
-# ==========================================================
-# MANAGEMENT SUMMARY
-# ==========================================================
 
-st.subheader("📋 Management Summary")
-
-st.success(
-
-    data.get(
-
-        "management_summary",
-
-        "No management summary."
-
-    )
-
-)
-
-st.divider()
 
 # ==========================================================
 # LEAN OBSERVATIONS
@@ -705,59 +687,6 @@ else:
 st.divider()
 
 # ==========================================================
-# TIME STUDY SUMMARY
-# ==========================================================
-
-st.subheader("📊 Time Study Summary")
-
-s1, s2, s3, s4 = st.columns(4)
-
-if len(activities) > 0:
-
-    s1.metric(
-
-        "Total Duration",
-
-        f"{df['Duration'].sum():.2f} sec"
-
-    )
-
-    s2.metric(
-
-        "Total TOCT",
-
-        f"{df['TOCT'].sum():.2f}"
-
-    )
-
-    s3.metric(
-
-        "Total NVA",
-
-        f"{df['NVA'].sum():.2f}"
-
-    )
-
-    s4.metric(
-
-        "Repeat NVA",
-
-        f"{df['R-NVA'].sum():.2f}"
-
-    )
-
-else:
-
-    s1.metric("Total Duration", "0")
-
-    s2.metric("TOCT", "0")
-
-    s3.metric("NVA", "0")
-
-    s4.metric("R-NVA", "0")
-
-st.divider()
-# ==========================================================
 # DOWNLOAD REPORTS
 # ==========================================================
 
@@ -819,82 +748,4 @@ st.divider()
 
 
 
-# ==========================================================
-# AI INSIGHTS
-# ==========================================================
 
-st.header("🤖 AI Insights")
-
-left, right = st.columns(2)
-
-with left:
-
-    st.success(f"""
-
-### Manufacturing Performance
-
-• Total Processes : **{total}**
-
-• Total Cycle Time : **{cycle:.2f} sec**
-
-• Value Added : **{va:.2f} sec**
-
-• Working Time : **{working:.2f} sec**
-
-""")
-
-with right:
-
-    st.warning(f"""
-
-### Improvement Areas
-
-• Walking Time : **{walking:.2f} sec**
-
-• Idle Time : **{idle:.2f} sec**
-
-• Non Value Added : **{nva:.2f} sec**
-
-• VA Percentage : **{va_percent}%**
-
-""")
-
-st.divider()
-
-# ==========================================================
-# FINAL MANAGEMENT REMARK
-# ==========================================================
-
-st.header("📋 Final AI Recommendation")
-
-st.info(f"""
-
-### AI Industrial Engineering Summary
-
-The uploaded manufacturing video contains **{total} processes**.
-
-Estimated Cycle Time : **{cycle:.2f} seconds**
-
-Estimated Working Time : **{working:.2f} seconds**
-
-Estimated Non Value Added Time : **{nva:.2f} seconds**
-
-### Recommended Improvements
-
-✅ Reduce Walking Distance
-
-✅ Reduce Waiting Time
-
-✅ Improve Workstation Layout
-
-✅ Improve Material Presentation
-
-✅ Implement Lean Manufacturing
-
-✅ Implement Standard Work
-
-✅ Reduce Repeat Non Value Added Activities
-
-""")
-
-st.divider()
