@@ -103,7 +103,7 @@ def get_base64(path):
     with open(path, "rb") as f:
         return base64.b64encode(f.read()).decode()
 
-logo = get_base64(r"C:\Users\kisho\Downloads\download.png")
+logo = get_base64(BASE_DIR / "assets" / "logo.png")
 
 st.markdown(f"""
 <style>
@@ -742,6 +742,5 @@ with download_col3:
             )
 
 st.divider()
-
 
 
