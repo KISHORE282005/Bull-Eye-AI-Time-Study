@@ -23,7 +23,7 @@ st.set_page_config(
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 JSON_FILE = BASE_DIR / "output" / "time_study.json"
-
+        
 loader = TimeStudyLoader(JSON_FILE)
 
 loader.load()

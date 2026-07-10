@@ -38,12 +38,19 @@ df = loader.get_activity_dataframe()
 # Convert Time
 # ----------------------------------------------------
 
-def convert_time(time_str):
+def convert_time(val):
 
-    if pd.isna(time_str):
+    if pd.isna(val):
         return pd.Timestamp("1900-01-01")
 
-    parts = time_str.split(":")
+    if isinstance(val, (int, float)):
+        seconds = int(val)
+        h = seconds // 3600
+        m = (seconds % 3600) // 60
+        s = seconds % 60
+        return pd.Timestamp(f"2025-01-01 {h:02}:{m:02}:{s:02}")
+
+    parts = str(val).split(":")
 
     if len(parts) == 2:
 
@@ -69,6 +76,8 @@ def convert_time(time_str):
 df["Start"] = df["start_time"].apply(convert_time)
 df["Finish"] = df["end_time"].apply(convert_time)
 
+df["duration_seconds"] = df["duration"]
+
 # ----------------------------------------------------
 # Timeline Chart
 # ----------------------------------------------------
@@ -78,12 +87,12 @@ fig = px.timeline(
     x_start="Start",
     x_end="Finish",
     y="process_name",
-    color="value_added",
+    color="activity_type",
     hover_data=[
-        "duration_seconds",
-        "operator_action",
-        "machine_used",
-        "confidence"
+        "duration",
+        "process_operation",
+        "operator",
+        "process_description"
     ],
     title="Process Timeline"
 )
