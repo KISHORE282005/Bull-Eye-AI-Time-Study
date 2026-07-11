@@ -85,7 +85,7 @@ def duration_chart(df):
 
         x="process_name",
 
-        y="duration_seconds",
+        y="duration",
 
         color="value_added",
 
@@ -106,6 +106,9 @@ def duration_chart(df):
 ##############################################################
 
 def confidence_chart(df):
+
+    if "confidence" not in df.columns:
+        return go.Figure()
 
     fig = px.line(
 
@@ -176,9 +179,9 @@ def timeline_chart(df):
 
         df,
 
-        x_start="start_time",
+        x_start="start_timestamp",
 
-        x_end="end_time",
+        x_end="end_timestamp",
 
         y="process_name",
 

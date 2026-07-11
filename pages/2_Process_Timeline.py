@@ -50,12 +50,23 @@ def convert_time(val):
         s = seconds % 60
         return pd.Timestamp(f"2025-01-01 {h:02}:{m:02}:{s:02}")
 
-    parts = str(val).split(":")
+    val = str(val).strip()
+
+    try:
+        seconds = float(val)
+        h = int(seconds) // 3600
+        m = (int(seconds) % 3600) // 60
+        s = int(seconds) % 60
+        return pd.Timestamp(f"2025-01-01 {h:02}:{m:02}:{s:02}")
+    except ValueError:
+        pass
+
+    parts = val.split(":")
 
     if len(parts) == 2:
 
         m = int(parts[0])
-        s = int(parts[1])
+        s = int(float(parts[1]))
 
         return pd.Timestamp(
             f"2025-01-01 00:{m:02}:{s:02}"
@@ -65,7 +76,7 @@ def convert_time(val):
 
         h = int(parts[0])
         m = int(parts[1])
-        s = int(parts[2])
+        s = int(float(parts[2]))
 
         return pd.Timestamp(
             f"2025-01-01 {h:02}:{m:02}:{s:02}"
@@ -73,8 +84,8 @@ def convert_time(val):
 
     return pd.Timestamp("2025-01-01")
 
-df["Start"] = df["start_time"].apply(convert_time)
-df["Finish"] = df["end_time"].apply(convert_time)
+df["Start"] = df["start_timestamp"].apply(convert_time)
+df["Finish"] = df["end_timestamp"].apply(convert_time)
 
 df["duration_seconds"] = df["duration"]
 
@@ -122,8 +133,8 @@ timeline = df[
     [
         "process_no",
         "process_name",
-        "start_time",
-        "end_time",
+        "start_timestamp",
+        "end_timestamp",
         "duration_seconds",
         "value_added",
         "waste_type"
@@ -210,11 +221,11 @@ for _, row in df.iterrows():
         with c2:
 
             st.write(
-                f"**Start:** {row['start_time']}"
+                f"**Start:** {row['start_timestamp']}"
             )
 
             st.write(
-                f"**End:** {row['end_time']}"
+                f"**End:** {row['end_timestamp']}"
             )
 
             st.write(

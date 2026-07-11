@@ -1,18 +1,19 @@
-import base64
-import os
 import json
+import tempfile
 from pathlib import Path
-
+import base64
+import pandas as pd
 import streamlit as st
 
 # ==========================================================
 # GEMINI MODULES
 # ==========================================================
 
-from gemini.uploader import upload_video
+from gemini.uploader import upload_video, delete_gemini_file
 from gemini.analyzer import analyze_video
 from gemini.parser import parse_json
 from gemini.report import save_report
+
 from utils.calculations import calculate_time_study
 
 # ==========================================================
@@ -23,77 +24,45 @@ st.set_page_config(
     page_title="Bull.com",
     page_icon="🏭",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
-
-# ==========================================================
-# PATHS
-# ==========================================================
-
-BASE_DIR = Path(__file__).parent
-
-VIDEO_DIR = BASE_DIR / "videos"
-OUTPUT_DIR = BASE_DIR / "output"
-
-VIDEO_DIR.mkdir(exist_ok=True)
-OUTPUT_DIR.mkdir(exist_ok=True)
-
-JSON_FILE = OUTPUT_DIR / "time_study.json"
-EXCEL_FILE = OUTPUT_DIR / "Industrial_Time_Study_Report.xlsx"
-
-# ==========================================================
-# SESSION STATE
-# ==========================================================
-
-if "video_uploaded" not in st.session_state:
-    st.session_state.video_uploaded = False
-
-if "video_path" not in st.session_state:
-    st.session_state.video_path = None
-
-if "analysis_complete" not in st.session_state:
-    st.session_state.analysis_complete = False
 
 # ==========================================================
 # CUSTOM CSS
 # ==========================================================
 
-st.markdown("""
-<style>
-
-.main{
-    background:#f5f7fb;
-}
-
-.title{
-    font-size:36px;
-    font-weight:bold;
-    color:#0A4B8C;
-}
-
-.subtitle{
-    font-size:18px;
-    color:#666;
-}
-
-div[data-testid="metric-container"]{
-    background:white;
-    border-radius:12px;
-    padding:15px;
-    box-shadow:0px 2px 8px rgba(0,0,0,0.08);
-}
-
-.stButton>button{
-    width:100%;
-    height:55px;
-    font-size:18px;
-    font-weight:bold;
-    border-radius:12px;
-}
-
-</style>
-""", unsafe_allow_html=True)
-
+st.markdown(
+    """
+    <style>
+    .main {
+        background: #f5f7fb;
+    }
+    .title {
+        font-size: 36px;
+        font-weight: bold;
+        color: #0A4B8C;
+    }
+    .subtitle {
+        font-size: 18px;
+        color: #666;
+    }
+    div[data-testid="metric-container"] {
+        background: white;
+        border-radius: 12px;
+        padding: 15px;
+        box-shadow: 0px 2px 8px rgba(0,0,0,0.08);
+    }
+    .stButton > button {
+        width: 100%;
+        height: 55px;
+        font-size: 18px;
+        font-weight: bold;
+        border-radius: 12px;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 # ==========================================================
 # HEADER
 # ==========================================================
@@ -103,7 +72,7 @@ def get_base64(path):
     with open(path, "rb") as f:
         return base64.b64encode(f.read()).decode()
 
-logo = get_base64(BASE_DIR / "assets" / "logo.png")
+logo = get_base64(r"D:\Industrial_AI_Time_Study\assets\logo.png")
 
 st.markdown(f"""
 <style>
@@ -176,20 +145,41 @@ AI Time Study
 st.divider()
 
 # ==========================================================
-# SIDEBAR
+# PATHS
+# ==========================================================
+
+BASE_DIR = Path(__file__).parent
+OUTPUT_DIR = BASE_DIR / "output"
+OUTPUT_DIR.mkdir(exist_ok=True)
+
+JSON_FILE = OUTPUT_DIR / "time_study.json"
+CSV_FILE = OUTPUT_DIR / "activities.csv"
+EXCEL_FILE = OUTPUT_DIR / "Industrial_Time_Study_Report.xlsx"
+
+# ==========================================================
+# SESSION STATE
+# ==========================================================
+
+DEFAULT_SESSION = {
+    "video_uploaded": False,
+    "video_path": None,
+    "analysis_complete": False,
+    "gemini_file": None,
+}
+
+for key, value in DEFAULT_SESSION.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
+
+# ==========================================================
+# SIDEBAR - PROGRESS WIDGETS
 # ==========================================================
 
 with st.sidebar:
-
-    st.title("Industrial AI")
-
-    st.success("System Ready")
-
-    
-
-    st.info(
-        "Maximum Upload Size : **2 GB**"
-    )
+    st.header("⚙ Analysis Progress")
+    status = st.empty()
+    progress = st.progress(0)
+    log_box = st.expander("📋 Logs", expanded=False)
 
 # ==========================================================
 # VIDEO UPLOAD
@@ -199,359 +189,234 @@ st.header("🎥 Upload Manufacturing Video")
 
 uploaded_video = st.file_uploader(
     "Upload Manufacturing Video",
-    type=["mp4", "avi", "mov", "mkv"]
+    type=["mp4", "avi", "mov", "mkv"],
+    accept_multiple_files=False,
 )
 
-MAX_SIZE = 2 * 1024 * 1024 * 1024
+MAX_SIZE = 2 * 1024 * 1024 * 1024  # 2 GB
 
 if uploaded_video is not None:
-
     if uploaded_video.size > MAX_SIZE:
-
-        st.error("❌ File size exceeds 2 GB.")
-
+        st.error("❌ Maximum upload size is 2 GB.")
         st.stop()
 
-    video_path = VIDEO_DIR / uploaded_video.name
-
-    # Save only once
-    if not video_path.exists():
-
-        with open(video_path, "wb") as f:
-            f.write(uploaded_video.getbuffer())
-
-    st.session_state.video_uploaded = True
-
-    st.session_state.video_path = str(video_path)
+    if st.session_state.video_path is None:
+        with tempfile.NamedTemporaryFile(
+            mode="wb", suffix=".mp4", delete=False
+        ) as tmp:
+            tmp.write(uploaded_video.getbuffer())
+            st.session_state.video_path = tmp.name
+        st.session_state.video_uploaded = True
 
     st.success("✅ Video uploaded successfully.")
+    st.video(st.session_state.video_path)
 
-    st.video(str(video_path))
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write(f"**File Name :** {uploaded_video.name}")
+    with col2:
+        st.write(
+            f"**File Size :** {round(uploaded_video.size / (1024 * 1024), 2)} MB"
+        )
 
-    st.write(f"**File Name:** {uploaded_video.name}")
-
-    st.write(
-        f"**Size:** {round(uploaded_video.size/(1024*1024),2)} MB"
+    temp_size = round(
+        Path(st.session_state.video_path).stat().st_size / (1024 * 1024), 2
     )
+    st.info(f"📁 Temporary Processing File : {temp_size} MB")
 
 st.divider()
-# ==========================================================
-# ANALYZE VIDEO
-# ==========================================================
-
-st.header("🚀 AI Analysis")
-
-col1, col2 = st.columns([3, 1])
-
-with col1:
-
-    st.info(
-        "After uploading the video, click **Analyze Video** to start the Industrial AI Time Study."
-    )
-
-with col2:
-
-    analyze = st.button(
-        "🚀 Analyze Video",
-        type="primary",
-        disabled=not st.session_state.video_uploaded
-    )
 
 # ==========================================================
-# PROGRESS AREA
+# ANALYZE BUTTON
 # ==========================================================
 
-progress = st.progress(0)
-
-status = st.empty()
-
-log_box = st.empty()
+analyze = st.button(
+    "🔍 Analyze Video",
+    use_container_width=True,
+    type="primary",
+)
 
 # ==========================================================
 # START ANALYSIS
 # ==========================================================
 
 if analyze:
+    video_path = st.session_state.video_path
+    gemini_video = None
 
     try:
-
         st.session_state.analysis_complete = False
 
-        video_path = st.session_state.video_path
-
         if video_path is None:
-
-            st.error("❌ No video found.")
-
+            st.error("❌ No uploaded video found.")
             st.stop()
 
-        # ----------------------------------------------------
+        # =====================================================
         # STEP 1
-        # ----------------------------------------------------
+        # =====================================================
 
         status.info("📤 Step 1 / 5 : Uploading video to Gemini...")
-
         progress.progress(10)
-
-        log_box.write("Uploading video...")
+        log_box.write("Uploading temporary video...")
 
         gemini_video = upload_video(video_path)
-
+        st.session_state.gemini_file = gemini_video
         progress.progress(25)
 
-        # ----------------------------------------------------
+        # =====================================================
         # STEP 2
-        # ----------------------------------------------------
+        # =====================================================
 
         status.info("🤖 Step 2 / 5 : Gemini is analyzing the manufacturing process...")
-
         log_box.write("Waiting for Gemini response...")
 
         response = analyze_video(gemini_video)
+        progress.progress(55)
 
-        progress.progress(60)
-
-        # ----------------------------------------------------
+        # =====================================================
         # STEP 3
-        # ----------------------------------------------------
+        # =====================================================
 
         status.info("📑 Step 3 / 5 : Parsing AI response...")
-
-        log_box.write("Parsing JSON...")
+        log_box.write("Parsing JSON response...")
 
         data = parse_json(response)
-
         progress.progress(70)
 
+        # =====================================================
+        # STEP 4
+        # =====================================================
 
-        # STEP 4 - Industrial Engineering Calculation Engine
-# =====================================================
-
-        status.info("⚙ Step 4 / 5 : Calculating Industrial Time Study...")
- 
-        log_box.write("Calculating Duration, Op1-Op5, WT1-WT5...")
+        status.info("⚙ Step 4 / 5 : Industrial Engineering Calculations...")
+        log_box.write("Calculating Duration...")
+        log_box.write("Calculating Op1 - Op5...")
+        log_box.write("Calculating WT1 - WT5...")
+        log_box.write("Calculating TOCT...")
+        log_box.write("Calculating NVA...")
+        log_box.write("Calculating R-NVA...")
 
         data = calculate_time_study(data)
-
         progress.progress(90)
 
-        # ----------------------------------------------------
+        # =====================================================
         # STEP 5
-        # ----------------------------------------------------
+        # =====================================================
 
-        status.info("💾 Step 5 / 5 : Saving reports...")
-
-        log_box.write("Generating Excel...")
+        status.info("💾 Step 5 / 5 : Generating Reports...")
+        log_box.write("Saving JSON...")
+        log_box.write("Saving CSV...")
+        log_box.write("Saving Excel...")
 
         save_report(data)
-
         progress.progress(100)
-
-        # ----------------------------------------------------
-        # STEP 5
-        # ----------------------------------------------------
 
         status.success("✅ Analysis Completed Successfully")
-
-        log_box.success("Industrial AI Time Study Generated")
-
-        progress.progress(100)
-
         st.session_state.analysis_complete = True
-
         st.balloons()
 
-        st.rerun()
-
     except Exception as e:
-
         progress.progress(0)
 
-        # Gemini overload
-
         if "503" in str(e):
-
-            st.error(
-                "🚦 Gemini servers are busy. Please wait a minute and click Analyze again."
-            )
-
+            st.error("🚦 Gemini servers are busy. Please wait a minute and try again.")
         elif "429" in str(e):
-
-            st.error(
-                "⚠ Gemini API quota exceeded."
-            )
-
+            st.error("⚠ Gemini API quota exceeded.")
         else:
-
             st.error("❌ Analysis Failed")
-
             st.exception(e)
+
+    finally:
+        if gemini_video is not None:
+            try:
+                if hasattr(gemini_video, "name"):
+                    delete_gemini_file(gemini_video.name)
+                    print("Gemini file deleted.")
+            except Exception as ex:
+                print(f"Gemini cleanup failed : {ex}")
+
+        if video_path:
+            try:
+                temp_video = Path(video_path)
+                if temp_video.exists():
+                    temp_video.unlink()
+                    print("Temporary video deleted.")
+            except Exception as ex:
+                print(f"Temporary file cleanup failed : {ex}")
+
+        st.session_state.video_uploaded = False
+        st.session_state.video_path = None
+        st.session_state.gemini_file = None
+        st.session_state.analysis_complete = False
+        st.rerun()
 
 # ==========================================================
 # DASHBOARD
 # ==========================================================
 
-st.divider()
-
 if not JSON_FILE.exists():
-
-    st.info(
-        "👆 Upload a manufacturing video and click **Analyze Video**."
-    )
-
+    st.info("👆 Upload a manufacturing video and click Analyze Video.")
     st.stop()
 
 try:
-
-    with open(
-
-        JSON_FILE,
-
-        "r",
-
-        encoding="utf-8"
-
-    ) as f:
-
+    with open(JSON_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
-
 except Exception:
-
-    st.warning("No analysis available yet.")
-
+    st.warning("No analysis available.")
     st.stop()
 
-overall = data["overall_analysis"]
+overall = data.get("overall_analysis", {})
 
-total = data["total_processes"]
+total = data.get("total_processes", 0)
+cycle = overall.get("cycle_time_seconds", 0)
+working = overall.get("operator_working_time", 0)
+walking = overall.get("walking_time", 0)
+idle = overall.get("operator_idle_time", 0)
+va = overall.get("estimated_value_added_time", 0)
+nva = overall.get("estimated_non_value_added_time", 0)
 
-cycle = overall["cycle_time_seconds"]
-
-working = overall["operator_working_time"]
-
-walking = overall["walking_time"]
-
-idle = overall["operator_idle_time"]
-
-va = overall["estimated_value_added_time"]
-
-nva = overall["estimated_non_value_added_time"]
-
+va_percent = 0
 if (va + nva) > 0:
+    va_percent = round((va / (va + nva)) * 100, 1)
 
-    va_percent = round(
-
-        (va / (va + nva)) * 100,
-
-        1
-
-    )
-
-else:
-
-    va_percent = 0
-    # ==========================================================
-# EXECUTIVE KPI
+# ==========================================================
+# KPI
 # ==========================================================
 
 st.subheader("📊 Executive KPI Dashboard")
 
 k1, k2, k3, k4, k5, k6 = st.columns(6)
 
-k1.metric(
-    "Processes",
-    total
-)
-
-k2.metric(
-    "Cycle Time",
-    f"{cycle:.2f} sec"
-)
-
-k3.metric(
-    "Working Time",
-    f"{working:.2f} sec"
-)
-
-k4.metric(
-    "Walking Time",
-    f"{walking:.2f} sec"
-)
-
-k5.metric(
-    "Idle Time",
-    f"{idle:.2f} sec"
-)
-
-k6.metric(
-    "VA %",
-    f"{va_percent}%"
-)
+k1.metric("Processes", total)
+k2.metric("Cycle Time", f"{cycle:.2f} sec")
+k3.metric("Working Time", f"{working:.2f} sec")
+k4.metric("Walking Time", f"{walking:.2f} sec")
+k5.metric("Idle Time", f"{idle:.2f} sec")
+k6.metric("VA %", f"{va_percent}%")
 
 st.divider()
 
 # ==========================================================
-# VIDEO SUMMARY
+# SUMMARY
 # ==========================================================
 
 st.subheader("🎥 Video Summary")
+st.info(data.get("video_summary", "No summary available."))
 
-st.info(
-
-    data.get(
-
-        "video_summary",
-
-        "No summary available."
-
-    )
-
-)
-
-st.divider()
 # ==========================================================
-# LEAN OBSERVATIONS
+# LEAN
 # ==========================================================
 
 st.subheader("📈 Lean Observations")
-
-lean = data.get("lean_observations", [])
-
-if len(lean) == 0:
-
-    st.info("No Lean observations detected.")
-
-else:
-
-    for item in lean:
-
-        st.warning(item)
-
-st.divider()
+for item in data.get("lean_observations", []):
+    st.warning(item)
 
 # ==========================================================
-# PRODUCTIVITY OPPORTUNITIES
+# OPPORTUNITIES
 # ==========================================================
 
 st.subheader("🚀 Productivity Opportunities")
-
-opportunities = data.get(
-
-    "productivity_opportunities",
-
-    []
-
-)
-
-if len(opportunities) == 0:
-
-    st.info("No improvement opportunities available.")
-
-else:
-
-    for item in opportunities:
-
-        st.success(item)
+for item in data.get("productivity_opportunities", []):
+    st.success(item)
 
 st.divider()
 
@@ -561,186 +426,97 @@ st.divider()
 
 st.subheader("📑 Industrial Time Study")
 
-import pandas as pd
-
 activities = data.get("activities", [])
 
 if len(activities) == 0:
-
     st.warning("No activities detected.")
-
 else:
-
     df = pd.DataFrame(activities)
 
     required_columns = [
-
-        "process_no",
-
-        "process_name",
-
-        "process_operation",
-
-        "process_description",
-
-        "start_timestamp",
-
-        "end_timestamp",
-
-        "duration",
-
-        "op1",
-
-        "op2",
-
-        "op3",
-
-        "op4",
-
-        "op5",
-
-        "op_wt1",
-
-        "op_wt2",
-
-        "op_wt3",
-
-        "op_wt4",
-
-        "op_wt5",
-
-        "toct",
-
-        "nva",
-
-        "r_nva"
-
+        "process_no", "process_name", "process_operation",
+        "process_description", "start_timestamp", "end_timestamp",
+        "duration", "op1", "op2", "op3", "op4", "op5",
+        "op_wt1", "op_wt2", "op_wt3", "op_wt4", "op_wt5",
+        "toct", "nva", "r_nva",
     ]
 
     for col in required_columns:
-
         if col not in df.columns:
-
-            df[col] = 0
+            df[col] = ""
 
     df = df[required_columns]
 
-    df.columns = [
-
-        "Process No",
-
-        "Process Name",
-
-        "Process Operation",
-        
-        "Process Description",
-
-        "Start Timestamp",
-
-        "End Timestamp",
-
-        "Duration",
-
-        "Op1",
-
-        "Op2",
-
-        "Op3",
-
-        "Op4",
-
-        "Op5",
-
-        "Op WT1",
-
-        "Op WT2",
-
-        "Op WT3",
-
-        "Op WT4",
-
-        "Op WT5",
-
-        "TOCT",
-
-        "NVA",
-
-        "R-NVA"
-
-    ]
-
     st.dataframe(
-
         df,
-
         use_container_width=True,
-
         hide_index=True,
-
-        height=500
-
+        height=600,
     )
-
-st.divider()
 
 # ==========================================================
 # DOWNLOAD REPORTS
 # ==========================================================
 
+st.divider()
 st.header("📥 Download Reports")
 
-download_col1, download_col2, download_col3 = st.columns(3)
+c1, c2, c3 = st.columns(3)
 
-# ---------------- JSON ----------------
-
-with download_col1:
-
+with c1:
     if JSON_FILE.exists():
-
         with open(JSON_FILE, "rb") as f:
-
             st.download_button(
-                label="📄 Download JSON",
+                "📄 Download JSON",
                 data=f,
                 file_name="time_study.json",
                 mime="application/json",
-                use_container_width=True
+                use_container_width=True,
             )
 
-# ---------------- CSV ----------------
-
-with download_col2:
-
-    csv_file = OUTPUT_DIR / "activities.csv"
-
-    if csv_file.exists():
-
-        with open(csv_file, "rb") as f:
-
+with c2:
+    if CSV_FILE.exists():
+        with open(CSV_FILE, "rb") as f:
             st.download_button(
-                label="📊 Download CSV",
+                "📊 Download CSV",
                 data=f,
                 file_name="activities.csv",
                 mime="text/csv",
-                use_container_width=True
+                use_container_width=True,
             )
 
-# ---------------- Excel ----------------
-
-with download_col3:
-
+with c3:
     if EXCEL_FILE.exists():
-
         with open(EXCEL_FILE, "rb") as f:
-
             st.download_button(
-                label="📗 Download Excel",
+                "📗 Download Excel",
                 data=f,
                 file_name="Industrial_Time_Study_Report.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
+                use_container_width=True,
             )
 
+# ==========================================================
+# NEW ANALYSIS
+# ==========================================================
+
 st.divider()
+st.header("🔄 New Analysis")
+st.info("Click below to analyze another manufacturing video.")
 
+if st.button("🆕 Start New Analysis", use_container_width=True):
+    try:
+        if st.session_state.video_path:
+            temp_file = Path(st.session_state.video_path)
+            if temp_file.exists():
+                temp_file.unlink()
+    except Exception:
+        pass
 
+    st.session_state.video_uploaded = False
+    st.session_state.video_path = None
+    st.session_state.analysis_complete = False
+    st.session_state.gemini_file = None
+
+    st.success("✅ Ready for next video.")
+    st.rerun()

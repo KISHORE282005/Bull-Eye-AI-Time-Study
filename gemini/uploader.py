@@ -18,3 +18,11 @@ def upload_video(video_path):
         )
 
     return file
+
+
+def delete_gemini_file(file_name):
+    """Delete uploaded video from Gemini cloud storage."""
+    try:
+        client.files.delete(name=file_name)
+    except Exception:
+        pass

@@ -96,8 +96,8 @@ display_df = df[
     "process_name",
     "process_operation",
 
-    "start_time",
-    "end_time",
+    "start_timestamp",
+    "end_timestamp",
 
     "duration",
 

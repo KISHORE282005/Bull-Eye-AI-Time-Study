@@ -139,55 +139,59 @@ class TimeStudyLoader:
 
         )
 
-        if not self.activities.empty:
+        required = [
 
-            required = [
+            "process_no",
 
-                "process_no",
+            "process_name",
 
-                "process_name",
+            "process_operation",
 
-                "process_operation",
+            "start_timestamp",
 
-                "start_time",
+            "end_timestamp",
 
-                "end_time",
+            "duration",
 
-                "duration",
+            "op1",
 
-                "op1",
+            "op2",
 
-                "op2",
+            "op3",
 
-                "op3",
+            "op4",
 
-                "op4",
+            "op5",
 
-                "op5",
+            "op_wt1",
 
-                "op_wt1",
+            "op_wt2",
 
-                "op_wt2",
+            "op_wt3",
 
-                "op_wt3",
+            "op_wt4",
 
-                "op_wt4",
+            "op_wt5",
 
-                "op_wt5",
+            "toct",
 
-                "toct",
+            "nva",
 
-                "nva",
+            "r_nva",
 
-                "r_nva"
+            "waste_type",
 
-            ]
+            "value_added"
 
-            for col in required:
+        ]
 
-                if col not in self.activities.columns:
+        string_cols = {"waste_type", "value_added"}
 
-                    self.activities[col] = 0
+        for col in required:
+
+            if col not in self.activities.columns:
+
+                self.activities[col] = "" if col in string_cols else 0
 
         return self.data
 
