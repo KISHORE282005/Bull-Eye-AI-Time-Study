@@ -58,77 +58,14 @@ st.divider()
 # VA vs NVA
 # ---------------------------------------------------
 
-left, right = st.columns(2)
-
-with left:
-
-    fig = px.pie(
-        names=["Value Added","Non Value Added"],
-        values=[va,nva],
-        hole=0.5,
-        title="VA vs NVA"
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-with right:
-
-    waste = df["waste_type"].fillna("None")
-
-    chart = waste.value_counts().reset_index()
-
-    chart.columns=["Waste","Count"]
-
-    fig = px.bar(
-        chart,
-        x="Waste",
-        y="Count",
-        text="Count",
-        title="Waste Distribution"
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-st.divider()
-
-# ---------------------------------------------------
-# Pareto
-# ---------------------------------------------------
-
-st.subheader("Pareto Analysis")
-
-pareto = (
-    df["waste_type"]
-    .fillna("None")
-    .value_counts()
-    .reset_index()
+fig = px.pie(
+    names=["Value Added","Non Value Added"],
+    values=[va,nva],
+    hole=0.5,
+    title="VA vs NVA"
 )
 
-pareto.columns=["Waste","Count"]
-
-pareto["Cumulative %"] = (
-    pareto["Count"].cumsum() /
-    pareto["Count"].sum()
-) * 100
-
-fig = px.bar(
-    pareto,
-    x="Waste",
-    y="Count",
-    text="Count",
-    title="Pareto of Lean Waste"
-)
-
-st.plotly_chart(
-    fig,
-    use_container_width=True
-)
-
-st.dataframe(
-    pareto,
-    use_container_width=True,
-    hide_index=True
-)
+st.plotly_chart(fig, use_container_width=True)
 
 st.divider()
 

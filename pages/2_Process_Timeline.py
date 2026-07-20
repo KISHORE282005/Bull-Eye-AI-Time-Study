@@ -150,47 +150,6 @@ st.dataframe(
 st.divider()
 
 # ----------------------------------------------------
-# Statistics
-# ----------------------------------------------------
-
-left, right = st.columns(2)
-
-with left:
-
-    st.subheader("Process Duration")
-
-    duration_chart = px.bar(
-        df,
-        x="process_name",
-        y="duration_seconds",
-        text="duration_seconds",
-        color="value_added"
-    )
-
-    st.plotly_chart(
-        duration_chart,
-        use_container_width=True
-    )
-
-with right:
-
-    st.subheader("Activity Sequence")
-
-    sequence = px.line(
-        df,
-        x="process_no",
-        y="duration_seconds",
-        markers=True
-    )
-
-    st.plotly_chart(
-        sequence,
-        use_container_width=True
-    )
-
-st.divider()
-
-# ----------------------------------------------------
 # Process Cards
 # ----------------------------------------------------
 
