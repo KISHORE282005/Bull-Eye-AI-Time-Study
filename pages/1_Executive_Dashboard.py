@@ -4,10 +4,6 @@ from pathlib import Path
 from utils.loader import TimeStudyLoader
 from utils.charts import (
     va_nva_chart,
-    waste_chart,
-    duration_chart,
-    confidence_chart,
-    activity_chart,
     efficiency_gauge
 )
 
@@ -118,44 +114,6 @@ with right:
         efficiency_gauge(va_percent),
         use_container_width=True
     )
-
-st.divider()
-
-left, right = st.columns(2)
-
-with left:
-
-    st.plotly_chart(
-        waste_chart(df),
-        use_container_width=True
-    )
-
-with right:
-
-    st.plotly_chart(
-        activity_chart(df),
-        use_container_width=True
-    )
-
-st.divider()
-
-st.plotly_chart(
-
-    duration_chart(df),
-
-    use_container_width=True
-
-)
-
-st.divider()
-
-st.plotly_chart(
-
-    confidence_chart(df),
-
-    use_container_width=True
-
-)
 
 st.divider()
 
