@@ -1,9 +1,16 @@
+import os
 import json
 import tempfile
 from pathlib import Path
 import base64
 import pandas as pd
 import streamlit as st
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Folder that holds logo.png and other assets (set in .env)
+ASSETS_DIR = Path(os.getenv("ASSETS_DIR", "assets"))
 
 # ==========================================================
 # GEMINI MODULES
@@ -72,7 +79,7 @@ def get_base64(path):
     with open(path, "rb") as f:
         return base64.b64encode(f.read()).decode()
 
-logo = get_base64(r"D:\Industrial_AI_Time_Study\assets\logo.png")
+logo = get_base64(ASSETS_DIR / "logo.png")
 
 st.markdown(f"""
 <style>

@@ -27,3 +27,4 @@ videos/*.mkv
 # OS
 Thumbs.db
 .DS_Store
+venv
