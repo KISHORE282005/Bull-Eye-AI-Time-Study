@@ -2,10 +2,7 @@ import streamlit as st
 from pathlib import Path
 
 from utils.loader import TimeStudyLoader
-from utils.charts import (
-    va_nva_chart,
-    efficiency_gauge
-)
+
 
 st.set_page_config(
     page_title="Executive Dashboard",
@@ -95,27 +92,6 @@ col6.metric(
 
 st.divider()
 
-# --------------------------------------------------
-# Charts
-# --------------------------------------------------
-
-left, right = st.columns(2)
-
-with left:
-
-    st.plotly_chart(
-        va_nva_chart(overall),
-        use_container_width=True
-    )
-
-with right:
-
-    st.plotly_chart(
-        efficiency_gauge(va_percent),
-        use_container_width=True
-    )
-
-st.divider()
 
 # --------------------------------------------------
 # Video Summary

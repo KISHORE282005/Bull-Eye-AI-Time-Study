@@ -31,7 +31,7 @@ st.set_page_config(
     page_title="Bull.com",
     page_icon="🏭",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 # ==========================================================
@@ -41,6 +41,12 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+    [data-testid="stSidebar"] {
+        display: none;
+    }
+    [data-testid="collapsedControl"] {
+        display: none;
+    }
     .main {
         background: #f5f7fb;
     }
@@ -179,14 +185,12 @@ for key, value in DEFAULT_SESSION.items():
         st.session_state[key] = value
 
 # ==========================================================
-# SIDEBAR - PROGRESS WIDGETS
+# PROGRESS WIDGETS
 # ==========================================================
 
-with st.sidebar:
-    st.header("⚙ Analysis Progress")
-    status = st.empty()
-    progress = st.progress(0)
-    log_box = st.expander("📋 Logs", expanded=False)
+status = st.empty()
+progress = st.progress(0)
+log_box = st.expander("📋 Logs", expanded=False)
 
 # ==========================================================
 # VIDEO UPLOAD

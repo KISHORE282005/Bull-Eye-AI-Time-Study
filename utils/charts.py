@@ -66,7 +66,7 @@ def timeline_chart(df):
 # KPI Gauge
 ##############################################################
 
-def efficiency_gauge(va_percent):
+#def efficiency_gauge(va_percent):
 
     fig = go.Figure(
 
