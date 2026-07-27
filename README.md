@@ -21,6 +21,8 @@ executive report — downloadable as **JSON, CSV, and Excel**.
 - **One-click exports** — download the report as JSON, CSV, or a formatted Excel workbook.
 - **Automatic cleanup** — temporary video files and Gemini cloud uploads are deleted
   after analysis.
+- **Simplified navigation** — two-page app (Main page + AI Report) with sidebar disabled
+  for a focused user experience.
 
 ---
 
@@ -49,10 +51,11 @@ Defined in [requirements.txt](requirements.txt):
 |---------|---------|---------|
 | **streamlit** | `>=1.35.0` | Web UI framework — the entire front end and multi-page app. |
 | **google-genai** | `>=1.0.0` | Google Gemini SDK — uploads the video and runs AI analysis. |
-| **pandas** | `>=2.0.0` | Data tables, transformations, and CSV/Excel building. |
-| **plotly** | `>=5.18.0` | Interactive charts and timelines. |
+| **pandas** | `>=2.0.0,<3.0.0` | Data tables, transformations, and CSV/Excel building. |
+| **numpy** | `>=1.26.0,<2.0.0` | Numerical computing support for pandas operations. |
 | **openpyxl** | `>=3.1.2` | Reads/writes the formatted `.xlsx` Excel reports. |
 | **python-dotenv** | `>=1.0.0` | Loads the `GEMINI_API_KEY` from a `.env` file. |
+| **truststore** | `>=0.10.0` | Windows certificate store integration for SSL/TLS. |
 
 > **Python 3.12** is used in development. Python **3.9+** is recommended.
 > The Gemini model used is **`gemini-2.5-flash`** (set in [gemini/config.py](gemini/config.py)).
@@ -90,7 +93,7 @@ GEMINI_API_KEY=your_api_key_here
 ```bash
 streamlit run main.py
 ```
-The app opens in your browser (usually at `http://localhost:8501`).
+The app opens in your browser (usually at `http://localhost:4002`).
 
 ### 5. Use it
 1. Upload a manufacturing video (`.mp4`, `.avi`, `.mov`, `.mkv`, up to **2 GB**).
@@ -121,7 +124,7 @@ Industrial_AI_Time_Study/
 │   ├── calculations.py         #   Time-study engine (Duration, TOCT, NVA...)
 │   ├── loader.py               #   Loads/normalizes the saved JSON report
 │   ├── export.py               #   Builds JSON/CSV/Excel exports
-│   ├── charts.py               #   Plotly charts
+│   ├── charts.py               #   Chart helpers (plotly removed — pending rework)
 │   ├── validator.py            #   Data validation
 │   └── styles.py               #   UI styling helpers
 │
@@ -130,10 +133,14 @@ Industrial_AI_Time_Study/
 │   ├── 2_Process_Timeline.py
 │   ├── 3_Process_Details.py
 │   ├── 4_Lean_analysis.py
-│   └── 5_AI_Report.py          #   Full executive report + downloads
+│   └── 5_AI_Report.py          #   Full executive report + downloads (in nav)
 │
 ├── assets/                     # Logo & CSS
 ├── docs/                       # Technical documentation
+│   ├── ANALYTICS_PROJECT.md    #   Analytics project documentation
+│   ├── TECHNICAL_DOCUMENTATION.md
+│   ├── LOGIC_DOCUMENT.md
+│   └── SCHEMATIC.html
 └── output/                     # Generated reports (created at runtime)
     ├── time_study.json
     ├── activities.csv
@@ -171,7 +178,7 @@ Browser (80 / 443)
       │
       ▼
    IIS  ── reverse proxy (ARR + URL Rewrite) + HTTPS
-      │   →  http://127.0.0.1:8501
+      │   →  http://127.0.0.1:4002
       ▼
    Streamlit app  ── Windows Service (NSSM), bound to localhost only
       │
@@ -218,7 +225,7 @@ binds to **localhost** (IIS is the only thing exposed publicly) and disables the
 
 ```toml
 [server]
-port = 8501
+port = 4002
 address = "127.0.0.1"      # localhost only — IIS handles public traffic
 headless = true            # no auto-open browser, no "dev" prompts
 maxUploadSize = 2048        # 2 GB uploads
@@ -244,7 +251,7 @@ nssm set AITimeStudy AppDirectory "C:\apps\Industrial_AI_Time_Study"
 nssm start AITimeStudy
 ```
 
-The app is now serving on `http://127.0.0.1:8501` (internal only). Manage it with
+The app is now serving on `http://127.0.0.1:4002` (internal only). Manage it with
 `nssm restart AITimeStudy` / `nssm stop AITimeStudy`, or from `services.msc`.
 
 ### 6. Put IIS in front as a reverse proxy (public port 80/443)
@@ -263,7 +270,7 @@ The app is now serving on `http://127.0.0.1:8501` (internal only). Manage it wit
       <rules>
         <rule name="ReverseProxyToStreamlit" stopProcessing="true">
           <match url="(.*)" />
-          <action type="Rewrite" url="http://127.0.0.1:8501/{R:1}" />
+          <action type="Rewrite" url="http://127.0.0.1:4002/{R:1}" />
         </rule>
       </rules>
     </rewrite>
@@ -280,7 +287,7 @@ The app is now serving on `http://127.0.0.1:8501` (internal only). Manage it wit
 
 ### 7. Open the firewall
 
-Allow inbound **80** and **443** in Windows Defender Firewall. Do **not** expose 8501 —
+Allow inbound **80** and **443** in Windows Defender Firewall. Do **not** expose 4002 —
 it stays bound to localhost behind IIS.
 
 ```powershell
@@ -320,4 +327,5 @@ Users now reach the app at `http://<server>` (or `https://<server>` with TLS). �
 Additional technical docs live in the [docs/](docs/) folder:
 - [TECHNICAL_DOCUMENTATION.md](docs/TECHNICAL_DOCUMENTATION.md)
 - [LOGIC_DOCUMENT.md](docs/LOGIC_DOCUMENT.md)
+- [ANALYTICS_PROJECT.md](docs/ANALYTICS_PROJECT.md)
 - [SCHEMATIC.html](docs/SCHEMATIC.html)
