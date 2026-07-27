@@ -1,7 +1,7 @@
 import streamlit as st
 from pathlib import Path
 import pandas as pd
-import plotly.express as px
+
 
 from utils.loader import TimeStudyLoader
 
@@ -89,39 +89,7 @@ df["Finish"] = df["end_timestamp"].apply(convert_time)
 
 df["duration_seconds"] = df["duration"]
 
-# ----------------------------------------------------
-# Timeline Chart
-# ----------------------------------------------------
 
-fig = px.timeline(
-    df,
-    x_start="Start",
-    x_end="Finish",
-    y="process_name",
-    color="activity_type",
-    hover_data=[
-        "duration",
-        "process_operation",
-        "operator",
-        "process_description"
-    ],
-    title="Process Timeline"
-)
-
-fig.update_yaxes(
-    autorange="reversed"
-)
-
-fig.update_layout(
-    height=700
-)
-
-st.plotly_chart(
-    fig,
-    use_container_width=True
-)
-
-st.divider()
 
 # ----------------------------------------------------
 # Timeline Table
@@ -170,11 +138,11 @@ for _, row in df.iterrows():
             )
 
             st.write(
-                f"**Operator Action:** {row['operator_action']}"
+                f"**Operator Action:** {row.get('operator_action', 'N/A')}"
             )
 
             st.write(
-                f"**Machine:** {row['machine_used']}"
+                f"**Machine:** {row.get('machine_used', 'N/A')}"
             )
 
         with c2:
@@ -192,7 +160,7 @@ for _, row in df.iterrows():
             )
 
             st.write(
-                f"**Confidence:** {row['confidence']}"
+                f"**Confidence:** {row.get('confidence', 'N/A')}"
             )
 
             st.write(
