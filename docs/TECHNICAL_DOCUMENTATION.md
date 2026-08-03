@@ -219,7 +219,7 @@ python-dotenv>=1.0.0
 
 ## 6. Configuration Notes & Known Constraints
 
-- **Model:** `gemini-2.5-flash` — set in [gemini/config.py](../gemini/config.py). Change here to switch models.
+- **Model:** `gemini-3.6-flash` — set in [gemini/config.py](../gemini/config.py). Change here to switch models.
 - **API key** is required at import time; the app raises a `ValueError` on startup if `GEMINI_API_KEY` is missing.
 - **Hard-coded logo path:** [app.py:106](../app.py#L106) reads a logo from `C:\Users\kisho\Downloads\download.png`. This will fail on other machines — consider switching to the bundled `assets/logo.png`.
 - **Single-user / local file store:** Results live in `output/time_study.json`; every page reads the same file, so the app effectively shows the **most recent** analysis only.

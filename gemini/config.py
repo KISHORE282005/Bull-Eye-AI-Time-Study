@@ -4,6 +4,7 @@ truststore.inject_into_ssl()
 
 from dotenv import load_dotenv
 from google import genai
+from google.genai import types
 
 load_dotenv()
 
@@ -19,8 +20,11 @@ if not API_KEY:
         "Copy .env.example to .env and add your API key."
     )
 
-MODEL = "gemini-2.5-flash"
+MODEL = "gemini-3.6-flash"
 
 client = genai.Client(
-    api_key=API_KEY
+    api_key=API_KEY,
+    http_options=types.HttpOptions(
+        timeout=900_000  # 15 minutes (milliseconds) — video analysis is slow
+    )
 )

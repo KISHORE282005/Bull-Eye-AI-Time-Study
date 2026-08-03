@@ -380,7 +380,7 @@ The perception model was selected against eight weighted criteria:
 
 ```python
 # gemini/config.py
-MODEL = "gemini-2.5-flash"
+MODEL = "gemini-3.6-flash"
 client = genai.Client(api_key=API_KEY)
 ```
 

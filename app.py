@@ -254,111 +254,129 @@ analyze = st.button(
 if analyze:
     video_path = st.session_state.video_path
     gemini_video = None
+    success = False
 
-    try:
-        st.session_state.analysis_complete = False
+    if video_path is None:
+        st.error("❌ No uploaded video found.")
 
-        if video_path is None:
-            st.error("❌ No uploaded video found.")
-            st.stop()
+    else:
+        try:
+            st.session_state.analysis_complete = False
 
-        # =====================================================
-        # STEP 1
-        # =====================================================
+            # =====================================================
+            # STEP 1
+            # =====================================================
 
-        status.info("📤 Step 1 / 5 : Uploading video to Gemini...")
-        progress.progress(10)
-        log_box.write("Uploading temporary video...")
+            status.info("📤 Step 1 / 5 : Uploading video to Gemini...")
+            progress.progress(10)
+            log_box.write("Uploading temporary video...")
 
-        gemini_video = upload_video(video_path)
-        st.session_state.gemini_file = gemini_video
-        progress.progress(25)
+            gemini_video = upload_video(video_path)
+            st.session_state.gemini_file = gemini_video
+            progress.progress(25)
 
-        # =====================================================
-        # STEP 2
-        # =====================================================
+            # =====================================================
+            # STEP 2
+            # =====================================================
 
-        status.info("🤖 Step 2 / 5 : Gemini is analyzing the manufacturing process...")
-        log_box.write("Waiting for Gemini response...")
+            status.info("🤖 Step 2 / 5 : Gemini is analyzing the manufacturing process...")
+            log_box.write("Waiting for Gemini response...")
+            st.info("⏳ Video analysis usually takes 2–5 minutes. Please keep this tab open.")
 
-        response = analyze_video(gemini_video)
-        progress.progress(55)
+            stream_status = st.empty()
 
-        # =====================================================
-        # STEP 3
-        # =====================================================
+            def on_progress(char_count):
+                stream_status.info(
+                    f"📡 Gemini is responding... {char_count} characters received"
+                )
 
-        status.info("📑 Step 3 / 5 : Parsing AI response...")
-        log_box.write("Parsing JSON response...")
+            response = analyze_video(
+                gemini_video,
+                on_progress=on_progress,
+            )
+            stream_status.empty()
+            progress.progress(55)
 
-        data = parse_json(response)
-        progress.progress(70)
+            # =====================================================
+            # STEP 3
+            # =====================================================
 
-        # =====================================================
-        # STEP 4
-        # =====================================================
+            status.info("📑 Step 3 / 5 : Parsing AI response...")
+            log_box.write("Parsing JSON response...")
 
-        status.info("⚙ Step 4 / 5 : Industrial Engineering Calculations...")
-        log_box.write("Calculating Duration...")
-        log_box.write("Calculating Op1 - Op5...")
-        log_box.write("Calculating WT1 - WT5...")
-        log_box.write("Calculating TOCT...")
-        log_box.write("Calculating NVA...")
-        log_box.write("Calculating R-NVA...")
+            data = parse_json(response)
+            progress.progress(70)
 
-        data = calculate_time_study(data)
-        progress.progress(90)
+            # =====================================================
+            # STEP 4
+            # =====================================================
 
-        # =====================================================
-        # STEP 5
-        # =====================================================
+            status.info("⚙ Step 4 / 5 : Industrial Engineering Calculations...")
+            log_box.write("Calculating Duration...")
+            log_box.write("Calculating Op1 - Op5...")
+            log_box.write("Calculating WT1 - WT5...")
+            log_box.write("Calculating TOCT...")
+            log_box.write("Calculating NVA...")
+            log_box.write("Calculating R-NVA...")
 
-        status.info("💾 Step 5 / 5 : Generating Reports...")
-        log_box.write("Saving JSON...")
-        log_box.write("Saving CSV...")
-        log_box.write("Saving Excel...")
+            data = calculate_time_study(data)
+            progress.progress(90)
 
-        save_report(data)
-        progress.progress(100)
+            # =====================================================
+            # STEP 5
+            # =====================================================
 
-        status.success("✅ Analysis Completed Successfully")
-        st.session_state.analysis_complete = True
-        st.balloons()
+            status.info("💾 Step 5 / 5 : Generating Reports...")
+            log_box.write("Saving JSON...")
+            log_box.write("Saving CSV...")
+            log_box.write("Saving Excel...")
 
-    except Exception as e:
-        progress.progress(0)
+            save_report(data)
+            progress.progress(100)
 
-        if "503" in str(e):
-            st.error("🚦 Gemini servers are busy. Please wait a minute and try again.")
-        elif "429" in str(e):
-            st.error("⚠ Gemini API quota exceeded.")
-        else:
-            st.error("❌ Analysis Failed")
-            st.exception(e)
+            status.success("✅ Analysis Completed Successfully")
+            st.session_state.analysis_complete = True
+            success = True
+            st.balloons()
 
-    finally:
-        if gemini_video is not None:
-            try:
-                if hasattr(gemini_video, "name"):
-                    delete_gemini_file(gemini_video.name)
-                    print("Gemini file deleted.")
-            except Exception as ex:
-                print(f"Gemini cleanup failed : {ex}")
+        except Exception as e:
+            progress.progress(0)
 
-        if video_path:
-            try:
-                temp_video = Path(video_path)
-                if temp_video.exists():
-                    temp_video.unlink()
-                    print("Temporary video deleted.")
-            except Exception as ex:
-                print(f"Temporary file cleanup failed : {ex}")
+            if "503" in str(e):
+                st.error("🚦 Gemini servers are busy. Please wait a minute and try again.")
+            elif "429" in str(e):
+                st.error("⚠ Gemini API quota exceeded.")
+            else:
+                st.error("❌ Analysis Failed")
+                st.exception(e)
 
-        st.session_state.video_uploaded = False
-        st.session_state.video_path = None
-        st.session_state.gemini_file = None
-        st.session_state.analysis_complete = False
-        st.rerun()
+        finally:
+            if gemini_video is not None:
+                try:
+                    if hasattr(gemini_video, "name"):
+                        delete_gemini_file(gemini_video.name)
+                        print("Gemini file deleted.")
+                except Exception as ex:
+                    print(f"Gemini cleanup failed : {ex}")
+
+            if video_path:
+                try:
+                    temp_video = Path(video_path)
+                    if temp_video.exists():
+                        temp_video.unlink()
+                        print("Temporary video deleted.")
+                except Exception as ex:
+                    print(f"Temporary file cleanup failed : {ex}")
+
+            st.session_state.video_uploaded = False
+            st.session_state.video_path = None
+            st.session_state.gemini_file = None
+            st.session_state.analysis_complete = False
+
+            # Only reload the dashboard after a successful analysis.
+            # On failure the error above must stay visible.
+            if success:
+                st.rerun()
 
 # ==========================================================
 # DASHBOARD
@@ -406,12 +424,7 @@ k6.metric("VA %", f"{va_percent}%")
 
 st.divider()
 
-# ==========================================================
-# SUMMARY
-# ==========================================================
 
-st.subheader("🎥 Video Summary")
-st.info(data.get("video_summary", "No summary available."))
 
 # ==========================================================
 # LEAN

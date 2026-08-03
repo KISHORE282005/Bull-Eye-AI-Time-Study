@@ -58,7 +58,7 @@ Defined in [requirements.txt](requirements.txt):
 | **truststore** | `>=0.10.0` | Windows certificate store integration for SSL/TLS. |
 
 > **Python 3.12** is used in development. Python **3.9+** is recommended.
-> The Gemini model used is **`gemini-2.5-flash`** (set in [gemini/config.py](gemini/config.py)).
+> The Gemini model used is **`gemini-3.6-flash`** (set in [gemini/config.py](gemini/config.py)).
 
 ---
 
