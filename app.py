@@ -167,25 +167,7 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 
 JSON_FILE = OUTPUT_DIR / "time_study.json"
 CSV_FILE = OUTPUT_DIR / "activities.csv"
-
-
-def clear_previous_reports():
-    """Delete old report files so no previous analysis is shown."""
-    for pattern in ("*.json", "*.csv", "*.xlsx"):
-        for file_path in OUTPUT_DIR.glob(pattern):
-            try:
-                file_path.unlink()
-            except Exception:
-                pass
-
-
-def current_excel_name():
-    """Excel report name based on the uploaded video name."""
-    from gemini.report import sanitize_video_name
-
-    video_name = st.session_state.get("video_name")
-    base = sanitize_video_name(video_name)
-    return f"{base}_Time_Study_Report.xlsx"
+EXCEL_FILE = OUTPUT_DIR / "Industrial_Time_Study_Report.xlsx"
 
 # ==========================================================
 # SESSION STATE
@@ -194,7 +176,6 @@ def current_excel_name():
 DEFAULT_SESSION = {
     "video_uploaded": False,
     "video_path": None,
-    "video_name": None,
     "analysis_complete": False,
     "gemini_file": None,
 }
@@ -219,7 +200,7 @@ st.header("🎥 Upload Manufacturing Video")
 
 uploaded_video = st.file_uploader(
     "Upload Manufacturing Video",
-    type=["mp4", "avi", "mov", "mkv", "mts", "m2ts", "ts"],
+    type=["mp4", "avi", "mov", "mkv"],
     accept_multiple_files=False,
 )
 
@@ -231,15 +212,12 @@ if uploaded_video is not None:
         st.stop()
 
     if st.session_state.video_path is None:
-        source_name = Path(uploaded_video.name)
-        suffix = source_name.suffix.lower() if source_name.suffix else ".mp4"
         with tempfile.NamedTemporaryFile(
-            mode="wb", suffix=suffix, delete=False
+            mode="wb", suffix=".mp4", delete=False
         ) as tmp:
             tmp.write(uploaded_video.getbuffer())
             st.session_state.video_path = tmp.name
         st.session_state.video_uploaded = True
-        st.session_state.video_name = uploaded_video.name
 
     st.success("✅ Video uploaded successfully.")
     st.video(st.session_state.video_path)
@@ -284,9 +262,6 @@ if analyze:
     else:
         try:
             st.session_state.analysis_complete = False
-
-            # Clear any previous report so stale data is never shown
-            clear_previous_reports()
 
             # =====================================================
             # STEP 1
@@ -356,10 +331,7 @@ if analyze:
             log_box.write("Saving CSV...")
             log_box.write("Saving Excel...")
 
-            save_report(
-                data,
-                video_name=st.session_state.get("video_name"),
-            )
+            save_report(data)
             progress.progress(100)
 
             status.success("✅ Analysis Completed Successfully")
@@ -424,8 +396,7 @@ except Exception:
 overall = data.get("overall_analysis", {})
 
 total = data.get("total_processes", 0)
-total_time = overall.get("total_time_seconds", 0)
-cycle = overall.get("cycle_time_seconds", total_time)
+cycle = overall.get("cycle_time_seconds", 0)
 working = overall.get("operator_working_time", 0)
 walking = overall.get("walking_time", 0)
 idle = overall.get("operator_idle_time", 0)
@@ -433,9 +404,7 @@ va = overall.get("estimated_value_added_time", 0)
 nva = overall.get("estimated_non_value_added_time", 0)
 
 va_percent = 0
-if total_time > 0:
-    va_percent = round((va / total_time) * 100, 1)
-elif (va + nva) > 0:
+if (va + nva) > 0:
     va_percent = round((va / (va + nva)) * 100, 1)
 
 # ==========================================================
@@ -447,17 +416,11 @@ st.subheader("📊 Executive KPI Dashboard")
 k1, k2, k3, k4, k5, k6 = st.columns(6)
 
 k1.metric("Processes", total)
-k2.metric("Total Time", f"{total_time:.2f} sec")
-k3.metric("Cycle Time", f"{cycle:.2f} sec")
-k4.metric("Working Time", f"{working:.2f} sec")
-k5.metric("Walking Time", f"{walking:.2f} sec")
-k6.metric("Idle Time", f"{idle:.2f} sec")
-
-k7, k8, k9 = st.columns(3)
-
-k7.metric("VA Time", f"{va:.2f} sec")
-k8.metric("NVA Time", f"{nva:.2f} sec")
-k9.metric("VA %", f"{va_percent}%")
+k2.metric("Cycle Time", f"{cycle:.2f} sec")
+k3.metric("Working Time", f"{working:.2f} sec")
+k4.metric("Walking Time", f"{walking:.2f} sec")
+k5.metric("Idle Time", f"{idle:.2f} sec")
+k6.metric("VA %", f"{va_percent}%")
 
 st.divider()
 
@@ -547,14 +510,12 @@ with c2:
             )
 
 with c3:
-    excel_name = data.get("excel_report_file") or current_excel_name()
-    excel_path = OUTPUT_DIR / excel_name
-    if excel_path.exists():
-        with open(excel_path, "rb") as f:
+    if EXCEL_FILE.exists():
+        with open(EXCEL_FILE, "rb") as f:
             st.download_button(
                 "📗 Download Excel",
                 data=f,
-                file_name=excel_name,
+                file_name="Industrial_Time_Study_Report.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
             )
@@ -576,13 +537,10 @@ if st.button("🆕 Start New Analysis", use_container_width=True):
     except Exception:
         pass
 
-    clear_previous_reports()
-
     st.session_state.video_uploaded = False
     st.session_state.video_path = None
-    st.session_state.video_name = None
     st.session_state.analysis_complete = False
     st.session_state.gemini_file = None
 
-    st.success("✅ Ready for next video. Previous report cleared.")
+    st.success("✅ Ready for next video.")
     st.rerun()
