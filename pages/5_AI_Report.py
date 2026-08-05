@@ -4,6 +4,7 @@ import pandas as pd
 
 from utils.loader import TimeStudyLoader
 from utils.export import export_excel, export_json, export_csv
+from gemini.report import sanitize_video_name
 
 # ==========================================================
 # PAGE CONFIG
@@ -71,7 +72,7 @@ st.divider()
 
 st.header("Overall Time Study")
 
-k1,k2,k3,k4 = st.columns(4)
+k1,k2,k3,k4,k5 = st.columns(5)
 
 k1.metric(
     "Processes",
@@ -79,16 +80,21 @@ k1.metric(
 )
 
 k2.metric(
+    "Total Time",
+    f'{overall["total_time_seconds"]} sec'
+)
+
+k3.metric(
     "Cycle Time",
     f'{overall["cycle_time_seconds"]} sec'
 )
 
-k3.metric(
+k4.metric(
     "Working Time",
     f'{overall["operator_working_time"]} sec'
 )
 
-k4.metric(
+k5.metric(
     "Walking Time",
     f'{overall["walking_time"]} sec'
 )
@@ -279,6 +285,10 @@ st.divider()
 
 st.header("Download Reports")
 
+report_base = sanitize_video_name(
+    data.get("video_file_name", "")
+)
+
 col1,col2,col3=st.columns(3)
 
 with col1:
@@ -289,7 +299,7 @@ with col1:
 
         data=export_json(data),
 
-        file_name="time_study.json",
+        file_name=f"{report_base}_time_study.json",
 
         mime="application/json"
 
@@ -303,7 +313,7 @@ with col2:
 
         data=export_csv(df),
 
-        file_name="Industrial_Time_Study.csv",
+        file_name=f"{report_base}_activities.csv",
 
         mime="text/csv"
 
@@ -331,7 +341,7 @@ with col3:
 
         data=excel,
 
-        file_name="Industrial_Time_Study_Report.xlsx",
+        file_name=f"{report_base}_Time_Study_Report.xlsx",
 
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 

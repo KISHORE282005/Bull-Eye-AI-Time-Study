@@ -96,7 +96,9 @@ streamlit run main.py
 The app opens in your browser (usually at `http://localhost:4002`).
 
 ### 5. Use it
-1. Upload a manufacturing video (`.mp4`, `.avi`, `.mov`, `.mkv`, up to **2 GB**).
+1. Upload a manufacturing video (`.mp4`, `.avi`, `.mov`, `.mkv`, `.mts`, `.m2ts`, `.ts`, up to **2 GB**).
+   Unsupported camera formats such as **MTS / AVCHD** are automatically converted to MP4
+   (bundled ffmpeg via `imageio-ffmpeg`) before analysis.
 2. Click **🔍 Analyze Video**.
 3. Watch the 5-step progress: **Upload → Analyze → Parse → Calculate → Report**.
 4. Review the dashboard and **download** the JSON / CSV / Excel reports.
@@ -144,7 +146,7 @@ Industrial_AI_Time_Study/
 └── output/                     # Generated reports (created at runtime)
     ├── time_study.json
     ├── activities.csv
-    └── Industrial_Time_Study_Report.xlsx
+    └── {video_name}_Time_Study_Report.xlsx
 ```
 
 ---
@@ -310,7 +312,7 @@ Users now reach the app at `http://<server>` (or `https://<server>` with TLS). �
 |------|-------------|
 | `output/time_study.json` | Full structured analysis (processes + overall metrics). |
 | `output/activities.csv` | Flat table of all processes and calculated columns. |
-| `output/Industrial_Time_Study_Report.xlsx` | Formatted Excel workbook (Time Study + Overall Analysis sheets). |
+| `output/{video_name}_Time_Study_Report.xlsx` | Formatted Excel workbook named after the analyzed video (Time Study + Overall Analysis sheets). |
 
 ---
 

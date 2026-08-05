@@ -1,4 +1,5 @@
 import json
+import re
 import pandas as pd
 from pathlib import Path
 
@@ -10,14 +11,49 @@ OUTPUT = Path("output")
 OUTPUT.mkdir(exist_ok=True)
 
 JSON_FILE = OUTPUT / "time_study.json"
-EXCEL_FILE = OUTPUT / "Industrial_Time_Study_Report.xlsx"
 CSV_FILE = OUTPUT / "activities.csv"
+
+# =========================================================
+# SANITIZE VIDEO NAME
+# =========================================================
+
+def sanitize_video_name(video_name):
+    """
+    Convert a video file name into a safe report base name.
+    "Site_A_Crane_Lift.MTS" -> "Site_A_Crane_Lift"
+    """
+
+    base = Path(video_name).stem if video_name else "Industrial_Time_Study"
+
+    base = re.sub(r'[<>:"/\\|?*]', "_", str(base))
+
+    base = base.strip().rstrip(".")
+
+    return base or "Industrial_Time_Study"
 
 # =========================================================
 # SAVE REPORT
 # =========================================================
 
-def save_report(data):
+def save_report(data, video_name=None):
+    """
+    Save JSON / CSV / Excel report.
+
+    The Excel workbook is named after the source video, e.g.
+    output/Site_A_Crane_Lift_Time_Study_Report.xlsx
+    """
+
+    # -------------------------------------------------
+    # Excel file name based on the video name
+    # -------------------------------------------------
+
+    base = sanitize_video_name(video_name)
+
+    excel_file = OUTPUT / f"{base}_Time_Study_Report.xlsx"
+
+    data["video_file_name"] = video_name or ""
+
+    data["excel_report_file"] = excel_file.name
 
     # -------------------------------------------------
     # Save JSON
@@ -168,7 +204,7 @@ def save_report(data):
     # -------------------------------------------------
 
     with pd.ExcelWriter(
-        EXCEL_FILE,
+        excel_file,
         engine="openpyxl"
     ) as writer:
 
@@ -313,7 +349,7 @@ def save_report(data):
 
     print(f"JSON  : {JSON_FILE}")
 
-    print(f"Excel : {EXCEL_FILE}")
+    print(f"Excel : {excel_file}")
 
     print(f"CSV   : {CSV_FILE}")
 

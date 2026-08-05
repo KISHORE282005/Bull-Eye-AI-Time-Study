@@ -27,11 +27,15 @@ class TimeStudyLoader:
 
             "management_summary": "Upload a manufacturing video to generate the report.",
 
+            "video_file_name": "",
+
             "total_processes": 0,
 
             "activities": [],
 
             "overall_analysis": {
+
+                "total_time_seconds": 0,
 
                 "cycle_time_seconds": 0,
 
@@ -39,7 +43,13 @@ class TimeStudyLoader:
 
                 "walking_time": 0,
 
+                "operator_waiting_time": 0,
+
+                "rework_time": 0,
+
                 "operator_idle_time": 0,
+
+                "unaccounted_idle_time": 0,
 
                 "inspection_time": 0,
 
@@ -91,6 +101,8 @@ class TimeStudyLoader:
 
         self.data.setdefault("management_summary", "")
 
+        self.data.setdefault("video_file_name", "")
+
         self.data.setdefault("total_processes", 0)
 
         self.data.setdefault("activities", [])
@@ -113,13 +125,21 @@ class TimeStudyLoader:
 
         overall = self.data["overall_analysis"]
 
+        overall.setdefault("total_time_seconds", 0)
+
         overall.setdefault("cycle_time_seconds", 0)
 
         overall.setdefault("operator_working_time", 0)
 
         overall.setdefault("walking_time", 0)
 
+        overall.setdefault("operator_waiting_time", 0)
+
+        overall.setdefault("rework_time", 0)
+
         overall.setdefault("operator_idle_time", 0)
+
+        overall.setdefault("unaccounted_idle_time", 0)
 
         overall.setdefault("inspection_time", 0)
 
@@ -210,6 +230,10 @@ class TimeStudyLoader:
             "management_summary":
 
                 self.data["management_summary"],
+
+            "video_file_name":
+
+                self.data.get("video_file_name", ""),
 
             "total_processes":
 

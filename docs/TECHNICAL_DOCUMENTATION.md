@@ -80,7 +80,7 @@ Industrial_AI_Time_Study/
     ├── time_study.json          # Canonical result consumed by all pages
     ├── gemini_response.txt      # Raw AI response (debugging)
     ├── activities.csv
-    └── Industrial_Time_Study_Report.xlsx
+    └── {video_name}_Time_Study_Report.xlsx   # Excel named after the analyzed video
 ```
 
 ### Layer responsibilities

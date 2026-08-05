@@ -439,13 +439,21 @@ def calculate_overall_analysis(activities):
 
     overall = {
 
+        "total_time_seconds":0,
+
         "cycle_time_seconds":0,
 
         "operator_working_time":0,
 
         "walking_time":0,
 
+        "operator_waiting_time":0,
+
+        "rework_time":0,
+
         "operator_idle_time":0,
+
+        "unaccounted_idle_time":0,
 
         "inspection_time":0,
 
@@ -455,12 +463,18 @@ def calculate_overall_analysis(activities):
 
     }
 
-    total_cycle = 0.0
+    if not activities:
+
+        return overall
+
     total_working = 0.0
     total_waiting = 0.0
     total_walking = 0.0
     total_rework = 0.0
     total_nva = 0.0
+
+    starts = []
+    ends = []
 
     for activity in activities:
 
@@ -469,7 +483,17 @@ def calculate_overall_analysis(activities):
             0
         )
 
-        total_cycle += duration
+        starts.append(
+            timestamp_to_seconds(
+                activity.get("start_timestamp", "00:00:00.000")
+            )
+        )
+
+        ends.append(
+            timestamp_to_seconds(
+                activity.get("end_timestamp", "00:00:00.000")
+            )
+        )
 
         activity_type = activity.get(
             "activity_type",
@@ -500,13 +524,74 @@ def calculate_overall_analysis(activities):
 
             total_nva += duration
 
-    overall["cycle_time_seconds"] = round(total_cycle,3)
+    # --------------------------------------------------
+    # Total observed time = first start -> last end
+    # --------------------------------------------------
 
-    overall["operator_working_time"] = round(total_working,3)
+    total_time = round(
+        max(ends) - min(starts),
+        3
+    )
 
-    overall["walking_time"] = round(total_walking,3)
+    if total_time < 0:
 
-    overall["operator_idle_time"] = round(total_waiting,3)
+        total_time = 0.0
+
+    # --------------------------------------------------
+    # Sum of every activity duration
+    # --------------------------------------------------
+
+    sum_durations = round(
+        total_working + total_waiting + total_walking + total_rework,
+        3
+    )
+
+    # --------------------------------------------------
+    # Gap time: seconds between activities that were NOT
+    # captured as any activity. This is idle time too.
+    # --------------------------------------------------
+
+    gap_time = round(
+        max(0.0, total_time - sum_durations),
+        3
+    )
+
+    # --------------------------------------------------
+    # Idle time = explicit waiting + uncaptured gaps
+    # --------------------------------------------------
+
+    idle_time = round(
+        total_waiting + gap_time,
+        3
+    )
+
+    overall["total_time_seconds"] = total_time
+
+    overall["cycle_time_seconds"] = total_time
+
+    overall["operator_working_time"] = round(
+        total_working,
+        3
+    )
+
+    overall["walking_time"] = round(
+        total_walking,
+        3
+    )
+
+    overall["operator_waiting_time"] = round(
+        total_waiting,
+        3
+    )
+
+    overall["rework_time"] = round(
+        total_rework,
+        3
+    )
+
+    overall["operator_idle_time"] = idle_time
+
+    overall["unaccounted_idle_time"] = gap_time
 
     overall["inspection_time"] = 0.0
 
@@ -554,6 +639,16 @@ def calculate_time_study(data):
         validated.append(
             validate_activity(activity)
         )
+
+    # -----------------------------------------
+    # Sort chronologically by start timestamp
+    # -----------------------------------------
+
+    validated.sort(
+        key=lambda a: timestamp_to_seconds(
+            a.get("start_timestamp", "00:00:00.000")
+        )
+    )
 
     # -----------------------------------------
     # Update Operator Columns

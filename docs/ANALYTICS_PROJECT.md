@@ -145,7 +145,7 @@ observation.
 | **Maximum size** | 2 GB (`maxUploadSize = 2048` in [.streamlit/config.toml](../.streamlit/config.toml)) |
 | **Unit of observation** | One manufacturing process step performed by the main operator |
 | **Sampling frame** | The main operator only — background personnel are excluded by design |
-| **Generated dataset** | `output/time_study.json`, `output/activities.csv`, `output/Industrial_Time_Study_Report.xlsx` |
+| **Generated dataset** | `output/time_study.json`, `output/activities.csv`, `output/{video_name}_Time_Study_Report.xlsx` |
 
 ### 2.3 ETL Procedure
 
