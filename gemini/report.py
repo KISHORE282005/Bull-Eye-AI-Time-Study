@@ -112,7 +112,9 @@ def save_report(data, video_name=None):
 
         "nva",
 
-        "r_nva"
+        
+
+        "nva_reason"
 
     ]
 
@@ -196,7 +198,9 @@ def save_report(data, video_name=None):
 
         "NVA (sec)",
 
-        "R-NVA (sec)"
+        
+
+        "NVA Reason"
 
     ]
     # -------------------------------------------------

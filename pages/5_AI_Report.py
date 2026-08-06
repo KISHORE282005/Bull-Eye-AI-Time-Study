@@ -196,7 +196,8 @@ report_df = df[[
     "op_wt5",
     "toct",
     "nva",
-    "r_nva"
+    
+    "nva_reason"
 ]].copy()
 
 report_df.columns = [
@@ -218,7 +219,8 @@ report_df.columns = [
     "Op WT5 (min)",
     "TOCT (min)",
     "NVA (min)",
-    "R-NVA (min)"
+    
+    "NVA Reason"
 ]
 
 st.dataframe(

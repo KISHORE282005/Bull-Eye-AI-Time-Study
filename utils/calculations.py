@@ -1,5 +1,6 @@
 from datetime import datetime
 from collections import defaultdict
+from utils.nva_reasons import assign_nva_reasons
 
 
 # ============================================================
@@ -663,6 +664,14 @@ def calculate_time_study(data):
     # -----------------------------------------
 
     validated = calculate_process_metrics(
+        validated
+    )
+
+    # -----------------------------------------
+    # Assign NVA Reasons
+    # -----------------------------------------
+
+    validated = assign_nva_reasons(
         validated
     )
 

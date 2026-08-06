@@ -27,7 +27,7 @@ CONTINUOUS TIME COVERAGE (CRITICAL FOR IDLE TIME):
 - Consecutive activities MUST be contiguous: each activity's `start_timestamp` should equal the previous activity's
   `end_timestamp` (within ~1 second). Only a genuinely idle period becomes a separate "Waiting" activity.
 
-Required JSON Schema:
+REQUIRED JSON SCHEMA:
 {
     "total_processes": 0,
     "activities": [
@@ -37,7 +37,8 @@ Required JSON Schema:
             "process_operation": "Working",
             "process_description": "Factual, brief description of the observable task",
             "start_timestamp": "00:00:00.000",
-            "end_timestamp": "00:00:00.000"
+            "end_timestamp": "00:00:00.000",
+            "nva_reason": ""
         }
     ],
     "overall_analysis": {
@@ -52,6 +53,48 @@ Required JSON Schema:
     "lean_observations": ["Only list factual delays or ergonomic issues visible"],
     "productivity_opportunities": ["Only list visible layout or tooling improvements"]
 }
+
+POSSIBLE NVA CAUSES (use EXACTLY one of these for `nva_reason`):
+- Excessive walking
+- Material stored far from the workstation
+- Bolt, nut, or component located away from the operator
+- Worker searching for tools or materials
+- Waiting for material availability
+- Waiting for machine completion
+- Waiting for another operator
+- Waiting for supervisor approval
+- Machine downtime
+- Poor workstation layout
+- Poor ergonomics
+- Excess transportation
+- Unnecessary motion
+- Repeated trips to collect materials
+- Material replenishment delay
+- Incorrect material placement
+- Inventory shortage
+- Tool not available nearby
+- Tool change delay
+- Quality inspection waiting
+- Rework
+- Congestion in work area
+- Forklift traffic
+- Conveyor delay
+- Operator confusion
+- Missing components
+- Poor work instructions
+- Inefficient workflow
+- Lack of standardization
+- Poor 5S implementation
+- Safety clearance delay
+- Equipment malfunction
+- Communication delay
+
+NVA REASON RULES:
+- For every activity with process_operation = "Waiting", "Walking", or "Rework",
+  set `nva_reason` to the ONE cause from the POSSIBLE NVA CAUSES list that best
+  explains the visible delay. Pick the most specific option.
+- For process_operation = "Working", set `nva_reason` to "".
+- Never invent a cause that is not on the list.
 
 STRICT RULES:
 1. Identify each distinct assembly process sequentially and chronologically.

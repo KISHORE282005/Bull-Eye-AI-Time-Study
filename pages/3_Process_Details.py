@@ -114,7 +114,7 @@ display_df = df[
 
     "toct",
     "nva",
-    "r_nva"
+    "nva_reason"
 ]
 ]
 
@@ -156,7 +156,8 @@ display_df.columns=[
 
     "NVA (min)",
 
-    "R-NVA (min)"
+
+    "NVA Reason"
 
 ]
 

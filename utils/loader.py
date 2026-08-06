@@ -199,13 +199,15 @@ class TimeStudyLoader:
 
             "r_nva",
 
+            "nva_reason",
+
             "waste_type",
 
             "value_added"
 
         ]
 
-        string_cols = {"waste_type", "value_added"}
+        string_cols = {"nva_reason", "waste_type", "value_added"}
 
         for col in required:
 
