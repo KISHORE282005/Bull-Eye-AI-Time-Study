@@ -39,7 +39,9 @@ executive report — downloadable as **JSON, CSV, and Excel**.
 | **VA %** | Value-added share of total cycle time. |
 
 Activities are auto-classified into **Working / Waiting / Walking / Rework** based on
-the operation name (see [utils/calculations.py](utils/calculations.py)).
+the operation name (see [utils/calculations.py](utils/calculations.py)). Every NVA
+activity also gets an **NVA Reason** (root cause) automatically assigned by keyword
+matching — see [utils/nva_reasons.py](utils/nva_reasons.py).
 
 ---
 
@@ -51,6 +53,7 @@ Defined in [requirements.txt](requirements.txt):
 |---------|---------|---------|
 | **streamlit** | `>=1.35.0` | Web UI framework — the entire front end and multi-page app. |
 | **google-genai** | `>=1.0.0` | Google Gemini SDK — uploads the video and runs AI analysis. |
+| **imageio-ffmpeg** | `>=0.4.9` | Bundled ffmpeg — converts unsupported camera formats (MTS / AVCHD) to MP4. |
 | **pandas** | `>=2.0.0,<3.0.0` | Data tables, transformations, and CSV/Excel building. |
 | **numpy** | `>=1.26.0,<2.0.0` | Numerical computing support for pandas operations. |
 | **openpyxl** | `>=3.1.2` | Reads/writes the formatted `.xlsx` Excel reports. |
@@ -87,7 +90,9 @@ copy .env.example .env       # Windows
 Then edit `.env` and set your key:
 ```
 GEMINI_API_KEY=your_api_key_here
+ASSETS_DIR=./assets
 ```
+(`ASSETS_DIR` points to the folder that holds `logo.png`; it defaults to `./assets`.)
 
 ### 4. Run the app
 ```bash
@@ -124,6 +129,7 @@ Industrial_AI_Time_Study/
 │
 ├── utils/                      # Calculation & reporting helpers
 │   ├── calculations.py         #   Time-study engine (Duration, TOCT, NVA...)
+│   ├── nva_reasons.py          #   NVA cause list + keyword-based reason assignment
 │   ├── loader.py               #   Loads/normalizes the saved JSON report
 │   ├── export.py               #   Builds JSON/CSV/Excel exports
 │   ├── charts.py               #   Chart helpers (plotly removed — pending rework)
@@ -136,6 +142,8 @@ Industrial_AI_Time_Study/
 │   ├── 3_Process_Details.py
 │   ├── 4_Lean_analysis.py
 │   └── 5_AI_Report.py          #   Full executive report + downloads (in nav)
+│                                #   (Only app.py + 5_AI_Report.py are registered in
+│                                #   main.py; pages 1–4 are legacy files.)
 │
 ├── assets/                     # Logo & CSS
 ├── docs/                       # Technical documentation
@@ -223,18 +231,24 @@ ASSETS_DIR="C:/apps/Industrial_AI_Time_Study/assets"
 ### 4. Production `config.toml`
 
 Ensure [.streamlit/config.toml](.streamlit/config.toml) has production settings — the app
-binds to **localhost** (IIS is the only thing exposed publicly) and disables the dev tooling:
+runs headless (no auto-open browser / dev prompts) and allows large uploads. The theme is
+also defined there:
 
 ```toml
 [server]
-port = 4002
-address = "127.0.0.1"      # localhost only — IIS handles public traffic
-headless = true            # no auto-open browser, no "dev" prompts
 maxUploadSize = 2048        # 2 GB uploads
-enableCORS = false
-enableXsrfProtection = true
-runOnSave = false           # not a development server
+port = 4002
+headless = true             # no auto-open browser, no "dev" prompts
+
+[theme]
+base = "light"
+backgroundColor = "#f7f4f4"
+secondaryBackgroundColor = "#f7f4f4"
+textColor = "#c53333fb"
 ```
+
+> IIS proxies to `127.0.0.1:4002`, so Streamlit stays on the internal network even
+> though the config above doesn't pin the bind address.
 
 ### 5. Run Streamlit as a Windows Service (NSSM)
 
