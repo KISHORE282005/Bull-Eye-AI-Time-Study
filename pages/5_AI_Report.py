@@ -263,7 +263,7 @@ summary_df = pd.DataFrame({
 
         round(df["nva"].sum(),2),
 
-        round(df["r_nva"].sum(),2)
+       
 
     ]
 
