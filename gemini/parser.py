@@ -42,4 +42,6 @@ def parse_json(text):
                     f"Activity {index} is missing '{field}'."
                 )
 
+        activity.setdefault("operator", "Operator 1")
+
     return data

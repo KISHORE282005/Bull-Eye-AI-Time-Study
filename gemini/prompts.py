@@ -9,6 +9,14 @@ CRITICAL INSTRUCTIONS:
 - Focus ONLY on the primary assembly operator(s) building the machine. Ignore background personnel.
 - `process_operation` MUST be exactly one of: "Working", "Waiting", "Walking", or "Rework".
 
+OPERATOR IDENTIFICATION:
+- Identify exactly how many primary assembly operators are observable in the video (between 1 and 5).
+- Tag EVERY activity with the operator who performs that task, using exactly one of
+  "Operator 1", "Operator 2", "Operator 3", "Operator 4", or "Operator 5".
+- If the same operator performs several activities, repeat the same tag on each.
+- If multiple operators work on the same activity, tag the operator performing the primary action.
+- Do NOT tag background personnel or non-assembly staff.
+
 CRANE LIFT — LOADING / UNLOADING RULES:
 - Whenever a crane, hoist, or gantry is used to lift, position, or move a part or machine, split the action into two activities:
   1. "Loading": when the crane LIFTS / HOISTS the part to bring it INTO the work area or ONTO the machine / fixture.
@@ -36,6 +44,7 @@ REQUIRED JSON SCHEMA:
             "process_name": "Short name (e.g., Chassis Welding, Engine Mounting, Crane Loading - Engine)",
             "process_operation": "Working",
             "process_description": "Factual, brief description of the observable task",
+            "operator": "Operator 1",
             "start_timestamp": "00:00:00.000",
             "end_timestamp": "00:00:00.000",
             "nva_reason": ""

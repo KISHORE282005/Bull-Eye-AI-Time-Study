@@ -196,6 +196,7 @@ DEFAULT_SESSION = {
     "video_path": None,
     "video_name": None,
     "analysis_complete": False,
+    "show_dashboard": False,
     "gemini_file": None,
 }
 
@@ -221,6 +222,7 @@ uploaded_video = st.file_uploader(
     "Upload Manufacturing Video",
     type=["mp4", "avi", "mov", "mkv", "mts", "m2ts", "ts"],
     accept_multiple_files=False,
+    key="uploaded_video",
 )
 
 MAX_SIZE = 2 * 1024 * 1024 * 1024  # 2 GB
@@ -364,6 +366,7 @@ if analyze:
 
             status.success("✅ Analysis Completed Successfully")
             st.session_state.analysis_complete = True
+            st.session_state.show_dashboard = True
             success = True
             st.balloons()
 
@@ -410,6 +413,10 @@ if analyze:
 # DASHBOARD
 # ==========================================================
 
+if not st.session_state.show_dashboard:
+    st.info("👆 Upload a manufacturing video and click Analyze Video.")
+    st.stop()
+
 if not JSON_FILE.exists():
     st.info("👆 Upload a manufacturing video and click Analyze Video.")
     st.stop()
@@ -432,11 +439,11 @@ idle = overall.get("operator_idle_time", 0)
 va = overall.get("estimated_value_added_time", 0)
 nva = overall.get("estimated_non_value_added_time", 0)
 
-va_percent = 0
+working_percent = 0
 if total_time > 0:
-    va_percent = round((va / total_time) * 100, 1)
-elif (va + nva) > 0:
-    va_percent = round((va / (va + nva)) * 100, 1)
+    working_percent = round((working / total_time) * 100, 1)
+elif cycle > 0:
+    working_percent = round((working / cycle) * 100, 1)
 
 # ==========================================================
 # KPI
@@ -457,7 +464,7 @@ k7, k8, k9 = st.columns(3)
 
 k7.metric("VA Time", f"{va:.2f} sec")
 k8.metric("NVA Time", f"{nva:.2f} sec")
-k9.metric("VA %", f"{va_percent}%")
+k9.metric("Working %", f"{working_percent}%")
 
 st.divider()
 
@@ -582,7 +589,10 @@ if st.button("🆕 Start New Analysis", use_container_width=True):
     st.session_state.video_path = None
     st.session_state.video_name = None
     st.session_state.analysis_complete = False
+    st.session_state.show_dashboard = False
     st.session_state.gemini_file = None
+    if "uploaded_video" in st.session_state:
+        del st.session_state["uploaded_video"]
 
     st.success("✅ Ready for next video. Previous report cleared.")
     st.rerun()

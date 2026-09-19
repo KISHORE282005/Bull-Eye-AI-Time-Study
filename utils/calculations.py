@@ -358,6 +358,35 @@ def update_operator_columns(activities):
                 activity["op_wt5"] = round(duration, 3)
 
     return activities
+
+
+# ============================================================
+# OPERATOR COUNT
+# ============================================================
+
+def detect_operator_count(activities):
+    """
+    Return how many distinct operators are present in the video,
+    derived from each activity's `operator` tag. Clamped to 1..5.
+    """
+    operators = set()
+
+    for activity in activities:
+        operator = str(activity.get("operator", "") or "").strip()
+        if operator:
+            operators.add(operator.lower())
+
+    count = len(operators)
+
+    if count < 1:
+        count = 1
+
+    if count > 5:
+        count = 5
+
+    return count
+
+
 # ============================================================
 # PROCESS CALCULATIONS
 # ============================================================
@@ -656,6 +685,14 @@ def calculate_time_study(data):
     # -----------------------------------------
 
     validated = update_operator_columns(
+        validated
+    )
+
+    # -----------------------------------------
+    # Detect Operator Count (1 to 5)
+    # -----------------------------------------
+
+    data["operator_count"] = detect_operator_count(
         validated
     )
 

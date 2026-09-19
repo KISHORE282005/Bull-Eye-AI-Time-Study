@@ -15,6 +15,8 @@ class TimeStudyLoader:
 
         self.overall = {}
 
+        self.operator_count = 5
+
     # =====================================================
     # DEFAULT JSON
     # =====================================================
@@ -173,6 +175,8 @@ class TimeStudyLoader:
 
             "duration",
 
+            "operator",
+
             "op1",
 
             "op2",
@@ -207,13 +211,40 @@ class TimeStudyLoader:
 
         ]
 
-        string_cols = {"nva_reason", "waste_type", "value_added"}
+        string_cols = {"nva_reason", "waste_type", "value_added", "operator"}
 
         for col in required:
 
             if col not in self.activities.columns:
 
                 self.activities[col] = "" if col in string_cols else 0
+
+        # ---------------------------------------
+        # Operator Count (1 to 5)
+        # ---------------------------------------
+
+        raw_count = self.data.get("operator_count", 0) or 0
+
+        if not raw_count:
+
+            operators = set()
+
+            for activity in self.data.get("activities", []):
+
+                operator = str(
+                    activity.get("operator", "") or ""
+                ).strip()
+
+                if operator:
+
+                    operators.add(operator.lower())
+
+            raw_count = max(len(operators), 1)
+
+        self.operator_count = max(
+            1,
+            min(int(raw_count), 5)
+        )
 
         return self.data
 

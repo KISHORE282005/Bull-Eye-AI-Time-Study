@@ -112,7 +112,7 @@ def save_report(data, video_name=None):
 
         "nva",
 
-        
+        "r_nva",
 
         "nva_reason"
 
@@ -122,31 +122,33 @@ def save_report(data, video_name=None):
     # Add Missing Columns
     # -------------------------------------------------
 
+    numeric_columns = [
+
+        "duration",
+
+        "op1",
+        "op2",
+        "op3",
+        "op4",
+        "op5",
+
+        "op_wt1",
+        "op_wt2",
+        "op_wt3",
+        "op_wt4",
+        "op_wt5",
+
+        "toct",
+        "nva",
+        "r_nva"
+
+    ]
+
     for column in required_columns:
 
         if column not in activities.columns:
 
-            if column in [
-
-                "duration",
-
-                "op1",
-                "op2",
-                "op3",
-                "op4",
-                "op5",
-
-                "op_wt1",
-                "op_wt2",
-                "op_wt3",
-                "op_wt4",
-                "op_wt5",
-
-                "toct",
-                "nva",
-                "r_nva"
-
-            ]:
+            if column in numeric_columns:
 
                 activities[column] = 0.0
 
@@ -198,7 +200,7 @@ def save_report(data, video_name=None):
 
         "NVA (sec)",
 
-        
+        "R-NVA (sec)",
 
         "NVA Reason"
 
