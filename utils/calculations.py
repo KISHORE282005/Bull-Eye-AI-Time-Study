@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from collections import defaultdict
 from utils.nva_reasons import assign_nva_reasons
@@ -269,9 +270,210 @@ def validate_activity(activity):
     activity.setdefault("start_timestamp", start_timestamp)
     activity.setdefault("end_timestamp", end_timestamp)
 
-    activity.setdefault("operator", "Operator 1")
+    # -----------------------------------
+    # Operator tag (never blank)
+    # -----------------------------------
+
+    operator = str(
+        activity.get("operator", "") or ""
+    ).strip()
+
+    activity["operator"] = operator or "Operator 1"
 
     return activity
+# ============================================================
+# OPERATOR IDENTIFICATION
+# ============================================================
+
+MAX_OPERATORS = 5
+
+
+def operator_name(index):
+    """
+    Operator index -> canonical tag. 2 -> "Operator 2"
+    """
+
+    return f"Operator {index}"
+
+
+def extract_operator_index(raw):
+    """
+    Pull an operator number (1 to 5) out of whatever label the AI returned.
+
+    "Operator 2" -> 2
+    "operator2"  -> 2
+    "OP 3"       -> 3
+    "Operator B" -> 2
+
+    Returns None when the label carries no usable number or letter.
+    """
+
+    text = str(raw or "").strip()
+
+    if not text:
+        return None
+
+    # -----------------------------------
+    # Numbered labels
+    # -----------------------------------
+
+    digits = re.findall(r"\d+", text)
+
+    if digits:
+
+        number = int(digits[0])
+
+        if 1 <= number <= MAX_OPERATORS:
+            return number
+
+        return None
+
+    # -----------------------------------
+    # Lettered labels (Operator A / B / C)
+    # -----------------------------------
+
+    for letter in re.findall(r"\b([A-Za-z])\b", text):
+
+        number = ord(letter.upper()) - ord("A") + 1
+
+        if 1 <= number <= MAX_OPERATORS:
+            return number
+
+    return None
+
+
+def assign_operator_indices(activities):
+    """
+    Give every activity a canonical operator tag plus an operator index.
+
+    The prompt asks for "Operator 1" ... "Operator 5", but real responses
+    also arrive as "operator2", "Op 3" or a free-text description. Every
+    DISTINCT label is mapped to its own slot, so two operators are never
+    collapsed into the same column and never lose their time.
+    """
+
+    mapping = {}
+
+    used = set()
+
+    # -----------------------------------
+    # Pass 1 : labels that already carry a
+    # number keep that exact slot.
+    #
+    # Different spellings of the same number
+    # ("Operator 2", "operator2", "OP 2")
+    # are the SAME person and MUST share one
+    # slot, or their time gets split in two.
+    # -----------------------------------
+
+    for activity in activities:
+
+        raw = str(activity.get("operator", "") or "").strip()
+
+        key = raw.lower()
+
+        if not key or key in mapping:
+            continue
+
+        index = extract_operator_index(raw)
+
+        if index is not None:
+
+            mapping[key] = index
+
+            used.add(index)
+
+    # -----------------------------------
+    # Pass 2 : every remaining label takes
+    # the next free slot, in order of
+    # appearance in the video
+    # -----------------------------------
+
+    for activity in activities:
+
+        raw = str(activity.get("operator", "") or "").strip()
+
+        key = raw.lower()
+
+        if not key or key in mapping:
+            continue
+
+        free = next(
+            (
+                i
+                for i in range(1, MAX_OPERATORS + 1)
+                if i not in used
+            ),
+            MAX_OPERATORS
+        )
+
+        mapping[key] = free
+
+        used.add(free)
+
+    # -----------------------------------
+    # Apply the mapping
+    # -----------------------------------
+
+    for activity in activities:
+
+        raw = str(activity.get("operator", "") or "").strip()
+
+        index = mapping.get(raw.lower(), 1)
+
+        activity["operator_index"] = index
+
+        activity["operator_label"] = raw
+
+        activity["operator"] = operator_name(index)
+
+    return activities
+
+
+# ============================================================
+# INTERVAL HELPERS
+# ============================================================
+
+def merge_intervals(intervals):
+    """
+    Merge overlapping (start, end) spans so time covered by two
+    activities at once is only counted once.
+    """
+
+    if not intervals:
+        return []
+
+    ordered = sorted(intervals)
+
+    merged = [list(ordered[0])]
+
+    for start, end in ordered[1:]:
+
+        if start <= merged[-1][1]:
+
+            merged[-1][1] = max(merged[-1][1], end)
+
+        else:
+
+            merged.append([start, end])
+
+    return [tuple(span) for span in merged]
+
+
+def covered_seconds(intervals):
+    """
+    Total wall-clock seconds covered by a set of spans.
+    """
+
+    return round(
+        sum(
+            end - start
+            for start, end in merge_intervals(intervals)
+        ),
+        3
+    )
+
+
 # ============================================================
 # OPERATOR CALCULATIONS
 # ============================================================
@@ -284,9 +486,9 @@ def update_operator_columns(activities):
 
     for activity in activities:
 
-        operator = activity.get(
-            "operator",
-            "Operator 1"
+        index = activity.get(
+            "operator_index",
+            1
         )
 
         duration = activity.get(
@@ -303,59 +505,25 @@ def update_operator_columns(activities):
         # Reset all columns
         # ------------------------------------
 
-        activity["op1"] = 0.0
-        activity["op2"] = 0.0
-        activity["op3"] = 0.0
-        activity["op4"] = 0.0
-        activity["op5"] = 0.0
+        for slot in range(1, MAX_OPERATORS + 1):
 
-        activity["op_wt1"] = 0.0
-        activity["op_wt2"] = 0.0
-        activity["op_wt3"] = 0.0
-        activity["op_wt4"] = 0.0
-        activity["op_wt5"] = 0.0
+            activity[f"op{slot}"] = 0.0
+
+            activity[f"op_wt{slot}"] = 0.0
 
         # ------------------------------------
-        # Working Time
+        # Working goes to that operator's Op
+        # column, everything else to their WT
+        # column
         # ------------------------------------
 
         if activity_type == "Working":
 
-            if operator == "Operator 1":
-                activity["op1"] = round(duration, 3)
-
-            elif operator == "Operator 2":
-                activity["op2"] = round(duration, 3)
-
-            elif operator == "Operator 3":
-                activity["op3"] = round(duration, 3)
-
-            elif operator == "Operator 4":
-                activity["op4"] = round(duration, 3)
-
-            elif operator == "Operator 5":
-                activity["op5"] = round(duration, 3)
-
-        # ------------------------------------
-        # Waiting / Walking / Rework
-        # ------------------------------------
+            activity[f"op{index}"] = round(duration, 3)
 
         else:
 
-            if operator == "Operator 1":
-                activity["op_wt1"] = round(duration, 3)
-
-            elif operator == "Operator 2":
-                activity["op_wt2"] = round(duration, 3)
-
-            elif operator == "Operator 3":
-                activity["op_wt3"] = round(duration, 3)
-
-            elif operator == "Operator 4":
-                activity["op_wt4"] = round(duration, 3)
-
-            elif operator == "Operator 5":
-                activity["op_wt5"] = round(duration, 3)
+            activity[f"op_wt{index}"] = round(duration, 3)
 
     return activities
 
@@ -367,24 +535,256 @@ def update_operator_columns(activities):
 def detect_operator_count(activities):
     """
     Return how many distinct operators are present in the video,
-    derived from each activity's `operator` tag. Clamped to 1..5.
+    derived from each activity's operator index. Clamped to 1..5.
     """
+
     operators = set()
 
     for activity in activities:
-        operator = str(activity.get("operator", "") or "").strip()
-        if operator:
-            operators.add(operator.lower())
+
+        index = activity.get("operator_index")
+
+        if index:
+            operators.add(int(index))
 
     count = len(operators)
 
     if count < 1:
         count = 1
 
-    if count > 5:
-        count = 5
+    if count > MAX_OPERATORS:
+        count = MAX_OPERATORS
 
     return count
+
+
+# ============================================================
+# PER OPERATOR ANALYSIS
+# ============================================================
+
+def calculate_operator_analysis(activities):
+    """
+    Build a full time study for EVERY operator seen in the video.
+
+    Each operator gets their own working / waiting / walking / rework
+    split, their own observed window, their own idle time and their own
+    utilisation - so a two-operator video is reported as two studies,
+    not one blended average.
+
+    Must run after calculate_process_metrics() so TOCT / NVA exist.
+    """
+
+    grouped = defaultdict(list)
+
+    for activity in activities:
+
+        grouped[
+            activity.get("operator_index", 1)
+        ].append(activity)
+
+    # --------------------------------------------
+    # The study window is SHARED by every operator:
+    # first action in the video to last action.
+    #
+    # Each operator is measured against this same
+    # window, so an operator who stops early is
+    # charged for the time they were not working -
+    # that idle time is what line balancing needs.
+    # --------------------------------------------
+
+    all_spans = []
+
+    for activity in activities:
+
+        start = timestamp_to_seconds(
+            activity.get("start_timestamp", "00:00:00.000")
+        )
+
+        end = timestamp_to_seconds(
+            activity.get("end_timestamp", "00:00:00.000")
+        )
+
+        if end > start:
+            all_spans.append((start, end))
+
+    if all_spans:
+
+        window_start = min(start for start, _ in all_spans)
+
+        window_end = max(end for _, end in all_spans)
+
+        study_window = round(window_end - window_start, 3)
+
+    else:
+
+        study_window = 0.0
+
+    summary = []
+
+    for index in sorted(grouped):
+
+        rows = grouped[index]
+
+        working = 0.0
+        waiting = 0.0
+        walking = 0.0
+        rework = 0.0
+
+        toct = 0.0
+        nva = 0.0
+        r_nva = 0.0
+
+        intervals = []
+
+        for activity in rows:
+
+            duration = activity.get("duration", 0) or 0
+
+            activity_type = activity.get(
+                "activity_type",
+                "Working"
+            )
+
+            if activity_type == "Working":
+                working += duration
+
+            elif activity_type == "Waiting":
+                waiting += duration
+
+            elif activity_type == "Walking":
+                walking += duration
+
+            elif activity_type == "Rework":
+                rework += duration
+
+            toct += activity.get("toct", 0) or 0
+
+            nva += activity.get("nva", 0) or 0
+
+            r_nva += activity.get("r_nva", 0) or 0
+
+            start = timestamp_to_seconds(
+                activity.get("start_timestamp", "00:00:00.000")
+            )
+
+            end = timestamp_to_seconds(
+                activity.get("end_timestamp", "00:00:00.000")
+            )
+
+            if end > start:
+                intervals.append((start, end))
+
+        # --------------------------------------------
+        # This operator's own observed window
+        # --------------------------------------------
+
+        if intervals:
+
+            observed = round(
+                max(end for _, end in intervals)
+                - min(start for start, _ in intervals),
+                3
+            )
+
+            first_seen = seconds_to_timestamp(
+                min(start for start, _ in intervals)
+            )
+
+            last_seen = seconds_to_timestamp(
+                max(end for _, end in intervals)
+            )
+
+        else:
+
+            observed = 0.0
+
+            first_seen = "00:00:00.000"
+
+            last_seen = "00:00:00.000"
+
+        # --------------------------------------------
+        # Time in the study window that this operator
+        # has NO recorded activity for. Covers gaps
+        # between their activities AND the time before
+        # they start or after they stop. It is idle
+        # time either way.
+        # --------------------------------------------
+
+        gap = round(
+            max(0.0, study_window - covered_seconds(intervals)),
+            3
+        )
+
+        idle = round(waiting + gap, 3)
+
+        # --------------------------------------------
+        # Utilisation against the shared study window,
+        # so operators are directly comparable
+        # --------------------------------------------
+
+        if study_window > 0:
+
+            utilisation = round((working / study_window) * 100, 1)
+
+        else:
+
+            utilisation = 0.0
+
+        total_nva = round(waiting + walking + rework + gap, 3)
+
+        accounted = round(working + waiting + walking + rework, 3)
+
+        if accounted > 0:
+
+            va_percent = round((working / accounted) * 100, 1)
+
+        else:
+
+            va_percent = 0.0
+
+        summary.append({
+
+            "operator": operator_name(index),
+
+            "operator_index": index,
+
+            "processes": len(rows),
+
+            "first_seen": first_seen,
+
+            "last_seen": last_seen,
+
+            "study_window_seconds": study_window,
+
+            "observed_time_seconds": observed,
+
+            "working_time": round(working, 3),
+
+            "waiting_time": round(waiting, 3),
+
+            "walking_time": round(walking, 3),
+
+            "rework_time": round(rework, 3),
+
+            "idle_time": idle,
+
+            "unaccounted_idle_time": gap,
+
+            "total_activity_time": accounted,
+
+            "toct": round(toct, 3),
+
+            "nva": round(total_nva, 3),
+
+            "r_nva": round(r_nva, 3),
+
+            "utilisation_percent": utilisation,
+
+            "value_added_percent": va_percent
+
+        })
+
+    return summary
 
 
 # ============================================================
@@ -465,13 +865,15 @@ def calculate_process_metrics(activities):
 # OVERALL ANALYSIS
 # ============================================================
 
-def calculate_overall_analysis(activities):
+def calculate_overall_analysis(activities, operator_summary=None):
 
     overall = {
 
         "total_time_seconds":0,
 
         "cycle_time_seconds":0,
+
+        "operator_count":1,
 
         "operator_working_time":0,
 
@@ -489,7 +891,9 @@ def calculate_overall_analysis(activities):
 
         "estimated_value_added_time":0,
 
-        "estimated_non_value_added_time":0
+        "estimated_non_value_added_time":0,
+
+        "average_operator_utilisation_percent":0
 
     }
 
@@ -568,21 +972,25 @@ def calculate_overall_analysis(activities):
         total_time = 0.0
 
     # --------------------------------------------------
-    # Sum of every activity duration
+    # Gap time: seconds inside an operator's own window
+    # that were NOT captured as any activity. This is
+    # idle time too.
+    #
+    # It MUST be measured per operator: when two operators
+    # work in parallel the sum of their durations can
+    # exceed the video length, which would otherwise wipe
+    # the gap out to zero.
     # --------------------------------------------------
 
-    sum_durations = round(
-        total_working + total_waiting + total_walking + total_rework,
-        3
-    )
+    if operator_summary is None:
 
-    # --------------------------------------------------
-    # Gap time: seconds between activities that were NOT
-    # captured as any activity. This is idle time too.
-    # --------------------------------------------------
+        operator_summary = calculate_operator_analysis(activities)
 
     gap_time = round(
-        max(0.0, total_time - sum_durations),
+        sum(
+            operator.get("unaccounted_idle_time", 0)
+            for operator in operator_summary
+        ),
         3
     )
 
@@ -595,9 +1003,33 @@ def calculate_overall_analysis(activities):
         3
     )
 
+    # --------------------------------------------------
+    # Operator headcount and average utilisation
+    # --------------------------------------------------
+
+    operator_count = max(len(operator_summary), 1)
+
+    if operator_summary:
+
+        average_utilisation = round(
+            sum(
+                operator.get("utilisation_percent", 0)
+                for operator in operator_summary
+            ) / operator_count,
+            1
+        )
+
+    else:
+
+        average_utilisation = 0.0
+
     overall["total_time_seconds"] = total_time
 
     overall["cycle_time_seconds"] = total_time
+
+    overall["operator_count"] = operator_count
+
+    overall["average_operator_utilisation_percent"] = average_utilisation
 
     overall["operator_working_time"] = round(
         total_working,
@@ -681,6 +1113,14 @@ def calculate_time_study(data):
     )
 
     # -----------------------------------------
+    # Map every operator label to its own slot
+    # -----------------------------------------
+
+    validated = assign_operator_indices(
+        validated
+    )
+
+    # -----------------------------------------
     # Update Operator Columns
     # -----------------------------------------
 
@@ -713,11 +1153,20 @@ def calculate_time_study(data):
     )
 
     # -----------------------------------------
+    # Per Operator Time Study
+    # -----------------------------------------
+
+    operator_summary = calculate_operator_analysis(
+        validated
+    )
+
+    # -----------------------------------------
     # Overall Analysis
     # -----------------------------------------
 
     overall = calculate_overall_analysis(
-        validated
+        validated,
+        operator_summary
     )
 
     # -----------------------------------------
@@ -725,6 +1174,8 @@ def calculate_time_study(data):
     # -----------------------------------------
 
     data["activities"] = validated
+
+    data["operator_analysis"] = operator_summary
 
     data["overall_analysis"] = overall
 

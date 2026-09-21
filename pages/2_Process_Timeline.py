@@ -105,7 +105,10 @@ timeline = df[
         "end_timestamp",
         "duration_seconds",
         "value_added",
-        "waste_type"
+        "waste_type",
+
+        # Appended last so the original columns are unchanged
+        "operator"
     ]
 ]
 
@@ -114,6 +117,27 @@ st.dataframe(
     use_container_width=True,
     hide_index=True
 )
+
+st.divider()
+
+# ----------------------------------------------------
+# Time Per Operator
+#
+# Operators run in parallel, so each one gets their own
+# working / walking / idle total.
+# ----------------------------------------------------
+
+operator_table = loader.get_operator_table()
+
+if not operator_table.empty:
+
+    st.subheader("👷 Time Per Operator")
+
+    st.dataframe(
+        operator_table,
+        use_container_width=True,
+        hide_index=True
+    )
 
 st.divider()
 
@@ -143,6 +167,10 @@ for _, row in df.iterrows():
 
             st.write(
                 f"**Machine:** {row.get('machine_used', 'N/A')}"
+            )
+
+            st.write(
+                f"**Operator:** {row.get('operator', 'Operator 1')}"
             )
 
         with c2:

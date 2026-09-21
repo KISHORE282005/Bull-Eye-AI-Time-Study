@@ -46,6 +46,10 @@ lean = loader.get_lean()
 
 opportunities = loader.get_opportunities()
 
+operator_count = loader.get_operator_count()
+
+operator_table = loader.get_operator_table()
+
 # ==========================================================
 # EXECUTIVE SUMMARY
 # ==========================================================
@@ -99,7 +103,7 @@ k5.metric(
     f'{overall["walking_time"]} sec'
 )
 
-k1,k2,k3 = st.columns(3)
+k1,k2,k3,k4 = st.columns(4)
 
 k1.metric(
     "Idle Time",
@@ -115,6 +119,42 @@ k3.metric(
     "NVA Time",
     f'{overall["estimated_non_value_added_time"]} sec'
 )
+
+k4.metric(
+    "Operators",
+    operator_count
+)
+
+st.divider()
+
+# ==========================================================
+# OPERATOR WISE TIME STUDY
+# ==========================================================
+
+st.header("Operator Wise Time Study")
+
+if operator_table.empty:
+
+    st.info("No per-operator breakdown available for this analysis.")
+
+else:
+
+    if operator_count > 1:
+
+        st.caption(
+            f"{operator_count} operators detected — "
+            "every operator is timed independently."
+        )
+
+    else:
+
+        st.caption("Single operator detected in this video.")
+
+    st.dataframe(
+        operator_table,
+        use_container_width=True,
+        hide_index=True
+    )
 
 st.divider()
 
@@ -196,8 +236,11 @@ report_df = df[[
     "op_wt5",
     "toct",
     "nva",
-    
-    "nva_reason"
+
+    "nva_reason",
+
+    # Appended last so the original columns are unchanged
+    "operator"
 ]].copy()
 
 report_df.columns = [
@@ -219,8 +262,10 @@ report_df.columns = [
     "Op WT5 (min)",
     "TOCT (min)",
     "NVA (min)",
-    
-    "NVA Reason"
+
+    "NVA Reason",
+
+    "Operator"
 ]
 
 st.dataframe(

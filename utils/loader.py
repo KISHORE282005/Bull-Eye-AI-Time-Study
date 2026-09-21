@@ -17,6 +17,8 @@ class TimeStudyLoader:
 
         self.operator_count = 5
 
+        self.operator_summary = pd.DataFrame()
+
     # =====================================================
     # DEFAULT JSON
     # =====================================================
@@ -34,6 +36,8 @@ class TimeStudyLoader:
             "total_processes": 0,
 
             "activities": [],
+
+            "operator_analysis": [],
 
             "overall_analysis": {
 
@@ -108,6 +112,8 @@ class TimeStudyLoader:
         self.data.setdefault("total_processes", 0)
 
         self.data.setdefault("activities", [])
+
+        self.data.setdefault("operator_analysis", [])
 
         self.data.setdefault("lean_observations", [])
 
@@ -246,6 +252,16 @@ class TimeStudyLoader:
             min(int(raw_count), 5)
         )
 
+        # ---------------------------------------
+        # Per Operator Summary
+        # ---------------------------------------
+
+        self.operator_summary = pd.DataFrame(
+
+            self.data.get("operator_analysis", [])
+
+        )
+
         return self.data
 
     # =====================================================
@@ -281,6 +297,73 @@ class TimeStudyLoader:
     def get_activity_dataframe(self):
 
         return self.activities
+
+    def get_operator_count(self):
+
+        return self.operator_count
+
+    def get_operator_summary(self):
+        """
+        One row per operator observed in the video.
+        Empty DataFrame when the study holds no operator breakdown.
+        """
+
+        return self.operator_summary
+
+    def get_operator_table(self):
+        """
+        Operator summary with report-ready column names.
+        """
+
+        columns = [
+
+            ("operator", "Operator"),
+
+            ("processes", "Processes"),
+
+            ("first_seen", "First Seen"),
+
+            ("last_seen", "Last Seen"),
+
+            ("study_window_seconds", "Cycle Window (sec)"),
+
+            ("observed_time_seconds", "Observed Time (sec)"),
+
+            ("working_time", "Working (sec)"),
+
+            ("waiting_time", "Waiting (sec)"),
+
+            ("walking_time", "Walking (sec)"),
+
+            ("rework_time", "Rework (sec)"),
+
+            ("idle_time", "Idle (sec)"),
+
+            ("toct", "TOCT (sec)"),
+
+            ("nva", "NVA (sec)"),
+
+            ("utilisation_percent", "Utilisation %"),
+
+            ("value_added_percent", "Value Added %")
+
+        ]
+
+        summary = self.operator_summary.copy()
+
+        text_cols = {"operator", "first_seen", "last_seen"}
+
+        for key, _ in columns:
+
+            if key not in summary.columns:
+
+                summary[key] = "" if key in text_cols else 0
+
+        summary = summary[[key for key, _ in columns]]
+
+        summary.columns = [header for _, header in columns]
+
+        return summary
 
     def get_lean(self):
 

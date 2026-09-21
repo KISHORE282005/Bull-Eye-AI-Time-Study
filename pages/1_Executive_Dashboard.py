@@ -33,6 +33,10 @@ lean = loader.get_lean()
 
 opportunities = loader.get_opportunities()
 
+operator_count = loader.get_operator_count()
+
+operator_table = loader.get_operator_table()
+
 # --------------------------------------------------
 # Header
 # --------------------------------------------------
@@ -58,7 +62,7 @@ if total > 0:
 else:
     va_percent = 0
 
-col1, col2, col3, col4, col5, col6 = st.columns(6)
+col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
 
 col1.metric(
     "Processes",
@@ -90,8 +94,51 @@ col6.metric(
     f"{va_percent}%"
 )
 
+col7.metric(
+    "Operators",
+    operator_count
+)
+
 st.divider()
 
+# --------------------------------------------------
+# Operator Performance
+#
+# Every operator in the video is timed separately.
+# --------------------------------------------------
+
+st.subheader("👷 Operator Performance")
+
+if operator_table.empty:
+
+    st.info("No per-operator breakdown available for this analysis.")
+
+else:
+
+    if operator_count > 1:
+
+        st.caption(
+            f"{operator_count} operators detected — "
+            "working, walking and idle time are calculated for each one."
+        )
+
+    else:
+
+        st.caption("Single operator detected in this video.")
+
+    st.dataframe(
+        operator_table,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.bar_chart(
+        operator_table.set_index("Operator")[
+            ["Working (sec)", "Walking (sec)", "Idle (sec)"]
+        ]
+    )
+
+st.divider()
 
 # --------------------------------------------------
 # Video Summary

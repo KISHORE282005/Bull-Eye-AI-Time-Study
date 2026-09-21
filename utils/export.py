@@ -31,7 +31,10 @@ REPORT_COLUMNS = [
 
     "toct",
     "nva",
-    "r_nva"
+    "r_nva",
+
+    # Appended last so the original report columns are unchanged
+    "operator"
 ]
 
 REPORT_HEADERS = [
@@ -56,7 +59,9 @@ REPORT_HEADERS = [
 
     "TOCT (min)",
     "NVA (min)",
-    "R-NVA (min)"
+    "R-NVA (min)",
+
+    "Operator"
 ]
 
 
@@ -155,6 +160,7 @@ def export_excel(
             sheet_name="Overall Analysis",
             index=False
         )
+
 
         ##################################################
         # Lean

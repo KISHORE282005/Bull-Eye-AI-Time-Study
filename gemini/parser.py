@@ -33,6 +33,8 @@ def parse_json(text):
         raise ValueError("Missing 'activities' in Gemini response.")
 
     # Validate each activity
+    operators = set()
+
     for index, activity in enumerate(data["activities"], start=1):
 
         for field in REQUIRED_FIELDS:
@@ -42,6 +44,18 @@ def parse_json(text):
                     f"Activity {index} is missing '{field}'."
                 )
 
-        activity.setdefault("operator", "Operator 1")
+        # An untagged activity still belongs to somebody:
+        # fall back to Operator 1 rather than dropping the time.
+        operator = str(
+            activity.get("operator", "") or ""
+        ).strip()
+
+        activity["operator"] = operator or "Operator 1"
+
+        operators.add(activity["operator"].lower())
+
+    # Trust the operators actually tagged on the activities over the
+    # count Gemini reports, so the two can never disagree.
+    data["operator_count"] = max(len(operators), 1)
 
     return data

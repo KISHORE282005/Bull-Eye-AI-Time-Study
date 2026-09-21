@@ -38,9 +38,28 @@ df = loader.get_activity_dataframe()
 # SEARCH
 # ==========================================================
 
-search = st.text_input(
-    "🔍 Search Process Name"
+search_col, operator_col = st.columns(2)
+
+with search_col:
+
+    search = st.text_input(
+        "🔍 Search Process Name"
+    )
+
+# ==========================================================
+# OPERATOR FILTER
+# ==========================================================
+
+operators = sorted(
+    o for o in df["operator"].dropna().unique() if str(o).strip()
 )
+
+with operator_col:
+
+    selected_operator = st.selectbox(
+        "👷 Operator",
+        ["All Operators"] + list(operators)
+    )
 
 if search:
 
@@ -52,6 +71,10 @@ if search:
             na=False
         )
     ]
+
+if selected_operator != "All Operators":
+
+    df = df[df["operator"] == selected_operator]
 
 # ==========================================================
 # SUMMARY
@@ -114,7 +137,10 @@ display_df = df[
 
     "toct",
     "nva",
-    "nva_reason"
+    "nva_reason",
+
+    # Appended last so the original columns are unchanged
+    "operator"
 ]
 ]
 
@@ -157,7 +183,9 @@ display_df.columns=[
     "NVA (min)",
 
 
-    "NVA Reason"
+    "NVA Reason",
+
+    "Operator"
 
 ]
 

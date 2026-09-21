@@ -342,6 +342,8 @@ if analyze:
             log_box.write("Calculating Duration...")
             log_box.write("Calculating Op1 - Op5...")
             log_box.write("Calculating WT1 - WT5...")
+            log_box.write("Detecting operators...")
+            log_box.write("Calculating per-operator time study...")
             log_box.write("Calculating TOCT...")
             log_box.write("Calculating NVA...")
             log_box.write("Calculating R-NVA...")
@@ -430,6 +432,8 @@ except Exception:
 
 overall = data.get("overall_analysis", {})
 
+operator_count = data.get("operator_count") or 1
+
 total = data.get("total_processes", 0)
 total_time = overall.get("total_time_seconds", 0)
 cycle = overall.get("cycle_time_seconds", total_time)
@@ -460,15 +464,14 @@ k4.metric("Working Time", f"{working:.2f} sec")
 k5.metric("Walking Time", f"{walking:.2f} sec")
 k6.metric("Idle Time", f"{idle:.2f} sec")
 
-k7, k8, k9 = st.columns(3)
+k7, k8, k9, k10 = st.columns(4)
 
 k7.metric("VA Time", f"{va:.2f} sec")
 k8.metric("NVA Time", f"{nva:.2f} sec")
 k9.metric("Working %", f"{working_percent}%")
+k10.metric("Operators", operator_count)
 
 st.divider()
-
-
 
 # ==========================================================
 # LEAN
@@ -507,6 +510,9 @@ else:
         "duration", "op1", "op2", "op3", "op4", "op5",
         "op_wt1", "op_wt2", "op_wt3", "op_wt4", "op_wt5",
         "toct", "nva", "r_nva", "nva_reason",
+
+        # Added at the end so the original columns stay untouched
+        "operator",
     ]
 
     for col in required_columns:

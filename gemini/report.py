@@ -114,7 +114,10 @@ def save_report(data, video_name=None):
 
         "r_nva",
 
-        "nva_reason"
+        "nva_reason",
+
+        # Appended last so the original report columns are unchanged
+        "operator"
 
     ]
 
@@ -202,7 +205,9 @@ def save_report(data, video_name=None):
 
         "R-NVA (sec)",
 
-        "NVA Reason"
+        "NVA Reason",
+
+        "Operator"
 
     ]
     # -------------------------------------------------
@@ -353,11 +358,13 @@ def save_report(data, video_name=None):
 
     print("=" * 60)
 
-    print(f"JSON  : {JSON_FILE}")
+    print(f"JSON      : {JSON_FILE}")
 
-    print(f"Excel : {excel_file}")
+    print(f"Excel     : {excel_file}")
 
-    print(f"CSV   : {CSV_FILE}")
+    print(f"CSV       : {CSV_FILE}")
+
+    print(f"Detected  : {data.get('operator_count', 1)} operator(s)")
 
     print("=" * 60)
 
