@@ -10,7 +10,7 @@
 
 ## 1. System Overview
 
-The application is a **multi-page Streamlit web app**. A user uploads a shop-floor video (up to 2 GB). The video is sent to **Google Gemini 2.5 Flash**, which acts as an "Industrial Engineering Expert" and returns a structured JSON list of manufacturing processes, each with a name, operation, description, and start/end timestamps.
+The application is a **multi-page Streamlit web app**. A user uploads a shop-floor video (up to 10 GB; anything over 2 GB is re-encoded to 720p first, because the Gemini Files API rejects larger files). The video is sent to **Google Gemini 2.5 Flash**, which acts as an "Industrial Engineering Expert" and returns a structured JSON list of manufacturing processes, each with a name, operation, description, and start/end timestamps.
 
 The AI **only observes and returns timestamps** — it deliberately does *not* do any math. All time-study calculations (duration, operator columns, TOCT, NVA, R-NVA, and overall analysis) are performed by a deterministic Python engine in [utils/calculations.py](../utils/calculations.py). This separation keeps the numbers auditable and reproducible.
 
@@ -203,7 +203,7 @@ copy .env.example .env         # Windows
 streamlit run app.py
 ```
 
-The app opens in the browser. Upload a video (mp4/avi/mov/mkv, ≤ 2 GB), click **🚀 Analyze Video**, and wait for the 5-step pipeline to finish.
+The app opens in the browser. Upload a video (mp4/avi/mov/mkv, ≤ 10 GB), click **🚀 Analyze Video**, and wait for the 5-step pipeline to finish. Files over 2 GB add a 10–40 minute re-encode before Step 2 begins.
 
 ### Dependencies (`requirements.txt`)
 ```
@@ -223,7 +223,8 @@ python-dotenv>=1.0.0
 - **API key** is required at import time; the app raises a `ValueError` on startup if `GEMINI_API_KEY` is missing.
 - **Hard-coded logo path:** [app.py:106](../app.py#L106) reads a logo from `C:\Users\kisho\Downloads\download.png`. This will fail on other machines — consider switching to the bundled `assets/logo.png`.
 - **Single-user / local file store:** Results live in `output/time_study.json`; every page reads the same file, so the app effectively shows the **most recent** analysis only.
-- **Upload limit:** enforced at 2 GB in `app.py`; Streamlit's own `maxUploadSize` may also need raising in `.streamlit/config.toml`.
+- **Upload limit:** 10 GB, enforced by `MAX_SIZE` in `app.py` and `maxUploadSize = 10240` in `.streamlit/config.toml` (both must agree). Two lower ceilings sit underneath it: the **Gemini Files API caps files at 2 GB** (20 GB per project), so [gemini/uploader.py](../gemini/uploader.py) re-encodes anything larger to 720p at a 1.8 GB size target before uploading; and an **IIS reverse proxy caps out at ~4 GB** because `maxAllowedContentLength` is a `uint`. Videos over ~10 hours are rejected rather than compressed, since the required bitrate would make activities unrecognisable.
+- **Upload memory:** Streamlit buffers the whole upload in RAM before it is written to disk, so the host needs free memory on the order of the file size. Raising the limit to 10 GB is a hosting decision as much as a config one.
 - **Operator attribution:** the current engine defaults every activity to "Operator 1" (the prompt analyzes only the main operator), so `op2`–`op5` / `op_wt2`–`op_wt5` remain 0 unless the data supplies an `operator` field.
 - **`utils/export.py` vs `report.py`:** `export.py` uses slightly different column keys (`start_time`/`end_time`) than the engine (`start_timestamp`/`end_timestamp`) — keep these aligned when editing export logic.
 

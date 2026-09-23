@@ -101,9 +101,11 @@ streamlit run main.py
 The app opens in your browser (usually at `http://localhost:4002`).
 
 ### 5. Use it
-1. Upload a manufacturing video (`.mp4`, `.avi`, `.mov`, `.mkv`, `.mts`, `.m2ts`, `.ts`, up to **2 GB**).
+1. Upload a manufacturing video (`.mp4`, `.avi`, `.mov`, `.mkv`, `.mts`, `.m2ts`, `.ts`, up to **10 GB**).
    Unsupported camera formats such as **MTS / AVCHD** are automatically converted to MP4
    (bundled ffmpeg via `imageio-ffmpeg`) before analysis.
+   Anything over **2 GB** is also automatically re-encoded down to 720p first, because the
+   Gemini Files API refuses files larger than 2 GB — see [Upload size limits](#-upload-size-limits).
 2. Click **🔍 Analyze Video**.
 3. Watch the 5-step progress: **Upload → Analyze → Parse → Calculate → Report**.
 4. Review the dashboard and **download** the JSON / CSV / Excel reports.
@@ -236,7 +238,7 @@ also defined there:
 
 ```toml
 [server]
-maxUploadSize = 2048        # 2 GB uploads
+maxUploadSize = 10240       # 10 GB uploads (megabytes)
 port = 4002
 headless = true             # no auto-open browser, no "dev" prompts
 
@@ -290,16 +292,24 @@ The app is now serving on `http://127.0.0.1:4002` (internal only). Manage it wit
         </rule>
       </rules>
     </rewrite>
-    <!-- Streamlit uses WebSockets; allow them through and raise the upload limit to 2 GB -->
+    <!-- Streamlit uses WebSockets; allow them through and raise the upload limit -->
     <webSocket enabled="true" />
     <security>
       <requestFiltering>
-        <requestLimits maxAllowedContentLength="2147483648" />
+        <!-- 4294967295 is the ceiling: maxAllowedContentLength is a uint -->
+        <requestLimits maxAllowedContentLength="4294967295" />
       </requestFiltering>
     </security>
   </system.webServer>
 </configuration>
 ```
+
+> ⚠️ **IIS caps uploads at ~4 GB.** `maxAllowedContentLength` is a `uint`, so `4294967295`
+> bytes is the highest value IIS accepts — a 10 GB upload cannot pass through the reverse
+> proxy no matter what `maxUploadSize` says. Users on the LAN who need the full 10 GB must
+> hit Streamlit directly on port 4002 (open the firewall for it), or pre-compress the video.
+> Also raise the ARR proxy timeout (**Application Request Routing Cache → Server Proxy
+> Settings → Time-out**) well above the default 120 s, or long uploads will be cut off.
 
 ### 7. Open the firewall
 
@@ -333,8 +343,35 @@ Users now reach the app at `http://<server>` (or `https://<server>` with TLS). �
 ## 📝 Notes
 
 - Video files and Gemini cloud uploads are automatically deleted after each analysis.
-- Maximum upload size is **2 GB**.
+- Maximum upload size is **10 GB** — see [Upload size limits](#-upload-size-limits).
 - Never commit your real `.env` file — only `.env.example` should be tracked.
+
+---
+
+## 📦 Upload size limits
+
+Three separate ceilings apply, and the smallest one in your setup wins:
+
+| Layer | Limit | Where it is set |
+|-------|-------|-----------------|
+| Streamlit uploader | **10 GB** | `maxUploadSize = 10240` in [.streamlit/config.toml](.streamlit/config.toml) and `MAX_SIZE` in [app.py](app.py) |
+| IIS reverse proxy | **~4 GB** | `maxAllowedContentLength` in `web.config` — a `uint`, so 4294967295 is the hard ceiling |
+| Gemini Files API | **2 GB per file**, 20 GB per project | Google's own limit — not configurable |
+
+Because Gemini refuses anything over 2 GB, [gemini/uploader.py](gemini/uploader.py) re-encodes
+oversized videos before the upload: it downscales to 720p and targets a total size of 1.8 GB by
+spreading that byte budget across the running time. A 10 GB file typically takes **10–40 minutes**
+to re-encode, and the app shows a percentage while it runs. 720p is ample for spotting walking,
+waiting, reaching and assembly, so the time-study results are unaffected.
+
+Videos longer than roughly **10 hours** are rejected rather than compressed — squeezing them
+under 2 GB would drop the bitrate below the point where activities stay recognisable. Split
+those into shorter segments and analyse them one at a time.
+
+> ⚠️ **Memory:** Streamlit buffers the entire upload in RAM before it reaches disk, so the
+> server needs free memory of roughly the file size on top of normal usage. A 10 GB upload on
+> a 16 GB machine will fail or thrash — size the host accordingly, or keep uploads under 2 GB
+> where no re-encode is needed at all.
 
 ---
 

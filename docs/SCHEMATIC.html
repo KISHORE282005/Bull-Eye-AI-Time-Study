@@ -203,8 +203,9 @@
         <div class="knob">📹</div>
         <div class="content"><div class="cbox">
           <h3>Operator uploads a manufacturing video</h3>
-          <p>The user drops an <code>mp4 / avi / mov / mkv</code> file (≤ 2 GB) into the Streamlit uploader. The file is
-          written once to <code>videos/</code> and previewed inline; a size guard rejects anything over the 2 GB limit.</p>
+          <p>The user drops an <code>mp4 / avi / mov / mkv</code> file (≤ 10 GB) into the Streamlit uploader. The file is
+          written once to <code>videos/</code> and previewed inline; a size guard rejects anything over the 10 GB limit, and
+          the inline preview is skipped above 500 MB so the browser is not asked to buffer the whole file.</p>
           <div class="deep"><b>Why it matters:</b> the raw video is the single source of truth. Everything downstream is
           derived from it, so the app keeps the original on disk (idempotent save — it is not re-written if it already exists)
           and stores the path in <code>st.session_state.video_path</code> so a Streamlit rerun never loses it.</div>
@@ -221,12 +222,17 @@
         <div class="knob">📤</div>
         <div class="content"><div class="cbox">
           <h3>Push the video to the Gemini Files API</h3>
-          <p>The local file is uploaded to Google's servers via <code>client.files.upload()</code>. Because large videos are
-          transcoded asynchronously, the uploader <b>polls</b> the file handle every 5 seconds while its state is
-          <code>PROCESSING</code> and only returns once the media is <code>ACTIVE</code>.</p>
+          <p>First <code>prepare_for_gemini()</code> gets the file into a shape the API will accept: unsupported containers
+          (MTS / AVCHD) are remuxed to MP4, and anything above <b>2 GB</b> — the Files API's hard per-file cap — is re-encoded
+          to 720p against a 1.8 GB size target, with the encode percentage reported back to the UI. The result is then
+          uploaded via <code>client.files.upload()</code>. Because large videos are transcoded asynchronously, the uploader
+          <b>polls</b> the file handle every 5 seconds while its state is <code>PROCESSING</code> and only returns once the
+          media is <code>ACTIVE</code>.</p>
           <div class="deep"><b>Deep detail:</b> Gemini cannot reason over a video until it has finished server-side
           preparation. Returning too early would make the next step fail, so this blocking poll loop is the synchronisation
-          point between the app and the model.</div>
+          point between the app and the model. The size target is set by spreading a fixed byte budget across the measured
+          running time, so the encode lands under the cap predictably; a video long enough to force the bitrate below
+          300 kbps (roughly 10 hours) is rejected instead, because activities stop being recognisable at that point.</div>
           <div class="io">
             <span class="pill in">IN <b>local path</b></span>
             <span class="pill out">OUT <b>Gemini file handle (ACTIVE)</b></span>

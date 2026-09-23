@@ -3,6 +3,13 @@ import pandas as pd
 from pathlib import Path
 from io import BytesIO
 from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.worksheet.hyperlink import Hyperlink
+from openpyxl.utils import get_column_letter
+
+from utils.nva_reasons import (
+    IDLE_NVA_THRESHOLD_SECONDS,
+    WALKING_STEP_THRESHOLD
+)
 
 
 # ==========================================================
@@ -13,6 +20,11 @@ REPORT_COLUMNS = [
     "process_no",
     "process_name",
     "process_operation",
+
+    # The description explains what the person is doing and which
+    # industrial process it belongs to - the heart of the study
+    "process_description",
+
     "start_timestamp",
     "end_timestamp",
     "duration",
@@ -30,8 +42,11 @@ REPORT_COLUMNS = [
     "op_wt5",
 
     "toct",
+    "va",
     "nva",
     "r_nva",
+    "nva_category",
+    "nva_reason",
 
     # Appended last so the original report columns are unchanged
     "operator"
@@ -41,6 +56,7 @@ REPORT_HEADERS = [
     "Process No",
     "Process Name",
     "Process Operation",
+    "Process Description",
     "Start Time",
     "End Time",
     "Duration",
@@ -58,11 +74,481 @@ REPORT_HEADERS = [
     "Op WT5 (min)",
 
     "TOCT (min)",
+    "VA (min)",
     "NVA (min)",
     "R-NVA (min)",
+    "NVA Category",
+    "NVA Reason",
 
     "Operator"
 ]
+
+
+# ==========================================================
+# OVERALL ANALYSIS SHEET
+# ==========================================================
+#
+# One sheet that answers three questions:
+#
+#   1. How long did the job take, and how much of it was
+#      Value Added versus Non Value Added?
+#   2. Which of the seven NVA conditions cost the most time?
+#   3. WHICH ACTIVITIES are the NVA - by name, with the
+#      operator, the timestamps and the reason.
+#
+# The NVA figure at the top is a link. Click it and Excel
+# jumps straight to the list of NVA activities. Each activity
+# there links back to its row on the Time Study sheet.
+# ==========================================================
+
+SECTION_FILL = PatternFill(fill_type="solid", fgColor="C00000")
+SECTION_FONT = Font(bold=True, color="FFFFFF", size=12)
+
+HEAD_FILL = PatternFill(fill_type="solid", fgColor="404040")
+HEAD_FONT = Font(bold=True, color="FFFFFF")
+
+TOTAL_FILL = PatternFill(fill_type="solid", fgColor="F2F2F2")
+TOTAL_FONT = Font(bold=True)
+
+VA_FONT = Font(bold=True, color="006100")
+NVA_FONT = Font(bold=True, color="9C0006")
+LINK_FONT = Font(bold=True, color="0563C1", underline="single")
+
+LEFT = Alignment(horizontal="left", vertical="top", wrap_text=True)
+CENTER = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+
+# Pretty names for the raw overall_analysis keys
+OVERALL_LABELS = {
+    "total_time_seconds": "Total Time (sec)",
+    "cycle_time_seconds": "Cycle Time (sec)",
+    "operator_count": "Operators",
+    "operator_working_time": "Operator Working Time (sec)",
+    "walking_time": "Walking Time (sec)",
+    "operator_waiting_time": "Operator Waiting Time (sec)",
+    "rework_time": "Rework Time (sec)",
+    "operator_idle_time": "Operator Idle Time (sec)",
+    "unaccounted_idle_time": "Unrecorded Idle Time (sec)",
+    "inspection_time": "Inspection Time (sec)",
+    "estimated_value_added_time": "Value Added (VA) Time (sec)",
+    "estimated_non_value_added_time": "Non Value Added (NVA) Time (sec)",
+    "value_added_percent": "Value Added (VA) %",
+    "non_value_added_percent": "Non Value Added (NVA) %",
+    "average_operator_utilisation_percent": "Average Operator Utilisation %"
+}
+
+
+def _percent(part, whole):
+    """part as a percentage of whole, safe when whole is zero."""
+
+    if not whole:
+        return 0.0
+
+    return round((part / whole) * 100, 1)
+
+
+def _section(worksheet, row, title, width):
+    """Write a full-width red section banner and return the next row."""
+
+    worksheet.cell(row=row, column=1, value=title)
+
+    worksheet.merge_cells(
+        start_row=row,
+        start_column=1,
+        end_row=row,
+        end_column=width
+    )
+
+    for column in range(1, width + 1):
+
+        cell = worksheet.cell(row=row, column=column)
+
+        cell.fill = SECTION_FILL
+        cell.font = SECTION_FONT
+        cell.alignment = Alignment(horizontal="left", vertical="center")
+
+    worksheet.row_dimensions[row].height = 22
+
+    return row + 1
+
+
+def _head(worksheet, row, headers):
+    """Write a dark column-header strip and return the next row."""
+
+    for column, title in enumerate(headers, start=1):
+
+        cell = worksheet.cell(row=row, column=column, value=title)
+
+        cell.fill = HEAD_FILL
+        cell.font = HEAD_FONT
+        cell.alignment = CENTER
+
+    return row + 1
+
+
+def _link(cell, location, text=None):
+    """Turn a cell into a clickable jump to another place in the book."""
+
+    if text is not None:
+        cell.value = text
+
+    cell.hyperlink = Hyperlink(
+        ref=cell.coordinate,
+        location=location
+    )
+
+    cell.font = LINK_FONT
+
+
+def write_overall_analysis_sheet(
+    worksheet,
+    overall,
+    nva_breakdown,
+    total_processes=0,
+    time_study_sheet="Time Study",
+    time_study_rows=None
+):
+    """
+    Build the Overall Analysis sheet.
+
+    time_study_rows maps a process number to its row on the Time Study
+    sheet, so every NVA activity can link back to where it came from.
+    """
+
+    overall = overall or {}
+
+    nva_breakdown = nva_breakdown or {}
+
+    time_study_rows = time_study_rows or {}
+
+    sheet_name = worksheet.title
+
+    categories = nva_breakdown.get("by_category", []) or []
+
+    nva_activities = nva_breakdown.get("activities", []) or []
+
+    unrecorded_idle = round(
+        nva_breakdown.get("unrecorded_idle_seconds", 0) or 0,
+        3
+    )
+
+    total_time = round(overall.get("total_time_seconds", 0) or 0, 3)
+
+    va_time = round(overall.get("estimated_value_added_time", 0) or 0, 3)
+
+    nva_time = round(overall.get("estimated_non_value_added_time", 0) or 0, 3)
+
+    rework_time = round(overall.get("rework_time", 0) or 0, 3)
+
+    accounted = round(va_time + nva_time, 3)
+
+    width = 10
+
+    row = 1
+
+    # ------------------------------------------------------
+    # 1. HEADLINE - TOTAL TIME / VA / NVA
+    # ------------------------------------------------------
+
+    row = _section(worksheet, row, "TIME STUDY SUMMARY", width)
+
+    row = _head(
+        worksheet,
+        row,
+        ["Metric", "Time (sec)", "Time (min)", "% of Work Content"]
+    )
+
+    headline = [
+        ("Total Time", total_time, 100.0, None),
+        ("Value Added (VA) Time", va_time, _percent(va_time, accounted), VA_FONT),
+        ("Non Value Added (NVA) Time", nva_time, _percent(nva_time, accounted), NVA_FONT),
+        ("Rework (R-NVA) Time", rework_time, _percent(rework_time, accounted), None)
+    ]
+
+    nva_row = None
+
+    for label, seconds, percent, font in headline:
+
+        worksheet.cell(row=row, column=1, value=label)
+        worksheet.cell(row=row, column=2, value=seconds)
+        worksheet.cell(row=row, column=3, value=round(seconds / 60, 3))
+        worksheet.cell(row=row, column=4, value=f"{percent}%")
+
+        if font is not None:
+
+            for column in range(1, 5):
+                worksheet.cell(row=row, column=column).font = font
+
+        if label.startswith("Non Value Added"):
+            nva_row = row
+
+        row += 1
+
+    worksheet.cell(row=row, column=1, value="Operators")
+    worksheet.cell(row=row, column=2, value=overall.get("operator_count", 1))
+    row += 1
+
+    worksheet.cell(row=row, column=1, value="Processes Studied")
+    worksheet.cell(row=row, column=2, value=total_processes)
+    row += 1
+
+    row += 1
+
+    # ------------------------------------------------------
+    # 2. NVA BY CONDITION
+    # ------------------------------------------------------
+
+    category_row = row
+
+    row = _section(
+        worksheet,
+        row,
+        "NVA BREAKDOWN - WHICH CONDITION COST THE TIME",
+        width
+    )
+
+    row = _head(
+        worksheet,
+        row,
+        [
+            "NVA Condition",
+            "What This Condition Means",
+            "Activities",
+            "NVA Time (sec)",
+            "% of NVA",
+            "% of Total Time"
+        ]
+    )
+
+    if categories:
+
+        for entry in categories:
+
+            seconds = round(entry.get("nva_seconds", 0) or 0, 3)
+
+            worksheet.cell(row=row, column=1, value=entry.get("nva_category", ""))
+            worksheet.cell(row=row, column=2, value=entry.get("definition", ""))
+            worksheet.cell(row=row, column=3, value=entry.get("activities", 0))
+            worksheet.cell(row=row, column=4, value=seconds)
+            worksheet.cell(row=row, column=5, value=f"{_percent(seconds, nva_time)}%")
+            worksheet.cell(row=row, column=6, value=f"{_percent(seconds, total_time)}%")
+
+            worksheet.cell(row=row, column=2).alignment = LEFT
+
+            row += 1
+
+        if unrecorded_idle > 0:
+
+            worksheet.cell(
+                row=row,
+                column=2,
+                value=(
+                    f"Of the idle time above, {unrecorded_idle} sec is time inside the "
+                    "study window that no activity was recorded for at all."
+                )
+            ).alignment = LEFT
+
+            row += 1
+
+        for column in range(1, 7):
+
+            cell = worksheet.cell(row=row, column=column)
+
+            cell.fill = TOTAL_FILL
+            cell.font = TOTAL_FONT
+
+        worksheet.cell(row=row, column=1, value="TOTAL NVA")
+        worksheet.cell(row=row, column=3, value=len(nva_activities))
+        worksheet.cell(row=row, column=4, value=nva_time)
+        worksheet.cell(row=row, column=5, value="100.0%")
+        worksheet.cell(row=row, column=6, value=f"{_percent(nva_time, total_time)}%")
+
+        row += 1
+
+    else:
+
+        worksheet.cell(
+            row=row,
+            column=1,
+            value="No non-value-added activity was detected in this video."
+        )
+
+        row += 1
+
+    row += 1
+
+    # ------------------------------------------------------
+    # 3. THE NVA ACTIVITIES THEMSELVES
+    # ------------------------------------------------------
+
+    detail_row = row
+
+    row = _section(
+        worksheet,
+        row,
+        "NVA ACTIVITIES - EXACTLY WHICH ACTIVITIES ARE NON VALUE ADDED",
+        width
+    )
+
+    row = _head(
+        worksheet,
+        row,
+        [
+            "Process No",
+            "Process Name",
+            "Operator",
+            "Operation",
+            "Start Time",
+            "End Time",
+            "NVA Time (sec)",
+            "NVA Condition",
+            "NVA Reason",
+            "What The Operator Is Doing"
+        ]
+    )
+
+    if nva_activities:
+
+        for entry in nva_activities:
+
+            process_no = entry.get("process_no", "")
+
+            number_cell = worksheet.cell(row=row, column=1, value=process_no)
+
+            # Link the process number back to its row on the Time
+            # Study sheet, so the reader can see it in context.
+
+            target = time_study_rows.get(process_no)
+
+            if target:
+
+                _link(
+                    number_cell,
+                    f"'{time_study_sheet}'!A{target}"
+                )
+
+            worksheet.cell(row=row, column=2, value=entry.get("process_name", ""))
+            worksheet.cell(row=row, column=3, value=entry.get("operator", ""))
+            worksheet.cell(row=row, column=4, value=entry.get("process_operation", ""))
+            worksheet.cell(row=row, column=5, value=entry.get("start_timestamp", ""))
+            worksheet.cell(row=row, column=6, value=entry.get("end_timestamp", ""))
+            worksheet.cell(row=row, column=7, value=entry.get("nva", 0))
+            worksheet.cell(row=row, column=8, value=entry.get("nva_category", ""))
+            worksheet.cell(row=row, column=9, value=entry.get("nva_reason", ""))
+
+            worksheet.cell(
+                row=row,
+                column=10,
+                value=entry.get("process_description", "")
+            ).alignment = LEFT
+
+            worksheet.cell(row=row, column=7).font = NVA_FONT
+
+            row += 1
+
+    else:
+
+        worksheet.cell(
+            row=row,
+            column=1,
+            value="No activity matched any of the seven NVA conditions."
+        )
+
+        row += 1
+
+    row += 1
+
+    # ------------------------------------------------------
+    # 4. EVERY METRIC
+    # ------------------------------------------------------
+
+    row = _section(worksheet, row, "OVERALL ANALYSIS - ALL METRICS", width)
+
+    row = _head(worksheet, row, ["Metric", "Value"])
+
+    for key, value in overall.items():
+
+        worksheet.cell(row=row, column=1, value=OVERALL_LABELS.get(key, key))
+        worksheet.cell(row=row, column=2, value=value)
+
+        row += 1
+
+    row += 1
+
+    # ------------------------------------------------------
+    # 5. THE RULES THIS REPORT APPLIED
+    # ------------------------------------------------------
+
+    row = _section(worksheet, row, "HOW NVA WAS DECIDED", width)
+
+    notes = [
+        "An activity is Non Value Added when it matches one of seven conditions: "
+        "excess walking, searching for tools, rework, idle time, excess movement, "
+        "speaking, or the operator not being available at the workstation.",
+
+        f"Idle time is only charged as NVA when it runs longer than "
+        f"{IDLE_NVA_THRESHOLD_SECONDS:.0f} seconds. A shorter pause is a normal "
+        "work pause.",
+
+        f"Walking is only charged as NVA when the operator takes more than "
+        f"{WALKING_STEP_THRESHOLD}-10 steps. A shorter walk inside the workstation "
+        "is part of the job.",
+
+        "Every activity that matched none of the seven conditions is counted as "
+        "Value Added time."
+    ]
+
+    for note in notes:
+
+        worksheet.cell(row=row, column=1, value=note)
+
+        worksheet.merge_cells(
+            start_row=row,
+            start_column=1,
+            end_row=row,
+            end_column=width
+        )
+
+        worksheet.cell(row=row, column=1).alignment = LEFT
+
+        worksheet.row_dimensions[row].height = 30
+
+        row += 1
+
+    # ------------------------------------------------------
+    # Make the NVA headline clickable
+    # ------------------------------------------------------
+
+    if nva_row is not None and nva_activities:
+
+        _link(
+            worksheet.cell(row=nva_row, column=1),
+            f"'{sheet_name}'!A{detail_row}",
+            "Non Value Added (NVA) Time  >>  click to see the activities"
+        )
+
+        _link(
+            worksheet.cell(row=nva_row, column=2),
+            f"'{sheet_name}'!A{category_row}",
+            nva_time
+        )
+
+    # ------------------------------------------------------
+    # Column widths
+    # ------------------------------------------------------
+
+    widths = [34, 46, 14, 16, 16, 16, 16, 24, 32, 70]
+
+    # Row 1 is a merged banner, so the letter comes from the index
+    # rather than from the cell.
+
+    for index, size in enumerate(widths, start=1):
+
+        worksheet.column_dimensions[
+            get_column_letter(index)
+        ].width = size
+
+    return worksheet
 
 
 # ==========================================================
@@ -126,11 +612,17 @@ def export_excel(
 
     opportunities,
 
-    summary
+    summary,
+
+    nva_breakdown=None,
+
+    total_processes=0
 
 ):
 
     output = BytesIO()
+
+    raw_activities = activities_df
 
     activities_df = prepare_dataframe(activities_df)
 
@@ -148,19 +640,6 @@ def export_excel(
             sheet_name="Time Study",
             index=False
         )
-
-        ##################################################
-        # Overall
-        ##################################################
-
-        pd.DataFrame(
-            [overall]
-        ).to_excel(
-            writer,
-            sheet_name="Overall Analysis",
-            index=False
-        )
-
 
         ##################################################
         # Lean
@@ -270,11 +749,82 @@ def export_excel(
 
                     column_cells[0].column_letter
 
-                ].width = length + 4
+                ].width = min(length + 4, 60)
+
+        ##################################################
+        # Overall Analysis
+        #
+        # Built last, and deliberately AFTER the loop
+        # above, so its banners and column widths are
+        # not overwritten by the generic formatting.
+        ##################################################
+
+        overall_sheet = workbook.create_sheet(
+            "Overall Analysis",
+            1
+        )
+
+        time_study_rows = {
+            process_no: index + 2
+            for index, process_no in enumerate(
+                activities_df["Process No"].tolist()
+            )
+        }
+
+        if nva_breakdown is None:
+
+            nva_breakdown = build_nva_breakdown(
+                raw_activities,
+                overall
+            )
+
+        write_overall_analysis_sheet(
+
+            overall_sheet,
+
+            overall,
+
+            nva_breakdown,
+
+            total_processes=total_processes or len(activities_df),
+
+            time_study_sheet="Time Study",
+
+            time_study_rows=time_study_rows
+
+        )
 
     output.seek(0)
 
     return output
+
+
+# ==========================================================
+# NVA BREAKDOWN FROM A DATAFRAME
+# ==========================================================
+
+def build_nva_breakdown(activities_df, overall=None):
+    """
+    Rebuild the NVA breakdown from an activities DataFrame.
+
+    The saved JSON already carries `nva_breakdown`; this is the
+    fallback for an older report that does not.
+    """
+
+    from utils.calculations import calculate_nva_breakdown
+
+    if activities_df is None or len(activities_df) == 0:
+        return {}
+
+    overall = overall or {}
+
+    return calculate_nva_breakdown(
+
+        activities_df.to_dict("records"),
+
+        (overall or {}).get("unaccounted_idle_time", 0)
+
+    )
 
 
 # ==========================================================

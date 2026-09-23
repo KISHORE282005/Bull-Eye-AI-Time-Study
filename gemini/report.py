@@ -3,12 +3,18 @@ import re
 import pandas as pd
 from pathlib import Path
 
+from utils.export import write_overall_analysis_sheet
+
 # =========================================================
 # OUTPUT FOLDER
 # =========================================================
 
-OUTPUT = Path("output")
-OUTPUT.mkdir(exist_ok=True)
+# Anchored to the project root, never to the current working
+# directory, so the reports always land in the same /output the
+# dashboard reads from - whatever folder Streamlit was started in.
+
+OUTPUT = Path(__file__).resolve().parent.parent / "output"
+OUTPUT.mkdir(parents=True, exist_ok=True)
 
 JSON_FILE = OUTPUT / "time_study.json"
 CSV_FILE = OUTPUT / "activities.csv"
@@ -110,9 +116,13 @@ def save_report(data, video_name=None):
 
         "toct",
 
+        "va",
+
         "nva",
 
         "r_nva",
+
+        "nva_category",
 
         "nva_reason",
 
@@ -142,6 +152,7 @@ def save_report(data, video_name=None):
         "op_wt5",
 
         "toct",
+        "va",
         "nva",
         "r_nva"
 
@@ -201,9 +212,13 @@ def save_report(data, video_name=None):
 
         "TOCT (sec)",
 
+        "VA (sec)",
+
         "NVA (sec)",
 
         "R-NVA (sec)",
+
+        "NVA Category",
 
         "NVA Reason",
 
@@ -282,59 +297,75 @@ def save_report(data, video_name=None):
         worksheet.freeze_panes = "A2"
 
         # ---------------------------------------------
-        # Overall Analysis Sheet
+        # Wrap the description so the sheet stays readable
         # ---------------------------------------------
 
-        overall = pd.DataFrame(
+        wrap = Alignment(
+            horizontal="left",
+            vertical="top",
+            wrap_text=True
+        )
 
-            list(
-                data.get(
-                    "overall_analysis",
-                    {}
-                ).items()
+        description_column = (
+            list(activities.columns).index("Process Description") + 1
+        )
+
+        for row in range(2, worksheet.max_row + 1):
+
+            worksheet.cell(
+                row=row,
+                column=description_column
+            ).alignment = wrap
+
+        worksheet.column_dimensions[
+            worksheet.cell(row=1, column=description_column).column_letter
+        ].width = 80
+
+        # ---------------------------------------------
+        # Filter buttons so NVA rows can be picked out
+        # on the Time Study sheet as well
+        # ---------------------------------------------
+
+        worksheet.auto_filter.ref = worksheet.dimensions
+
+        # ---------------------------------------------
+        # Overall Analysis Sheet
+        #
+        # Total Time / VA / NVA, the NVA breakdown by
+        # condition, and the list of exactly which
+        # activities the NVA is made of.
+        # ---------------------------------------------
+
+        overall_sheet = workbook.create_sheet("Overall Analysis")
+
+        # Process number -> its row on the Time Study sheet,
+        # so every NVA activity links back to its own row.
+
+        time_study_rows = {
+            process_no: index + 2
+            for index, process_no in enumerate(
+                activities["Process No"].tolist()
+            )
+        }
+
+        write_overall_analysis_sheet(
+
+            overall_sheet,
+
+            data.get("overall_analysis", {}),
+
+            data.get("nva_breakdown", {}),
+
+            total_processes=data.get(
+                "total_processes",
+                len(activities)
             ),
 
-            columns=[
-                "Metric",
-                "Value"
-            ]
+            time_study_sheet="Time Study",
+
+            time_study_rows=time_study_rows
 
         )
-
-        overall.to_excel(
-
-            writer,
-
-            sheet_name="Overall Analysis",
-
-            index=False
-
-        )
-
-        overall_sheet = writer.sheets[
-            "Overall Analysis"
-        ]
-
-        for cell in overall_sheet[1]:
-
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.alignment = center
-
-        for column_cells in overall_sheet.columns:
-
-            length = max(
-
-                len(str(cell.value))
-                if cell.value else 0
-
-                for cell in column_cells
-
-            )
-
-            overall_sheet.column_dimensions[
-                column_cells[0].column_letter
-            ].width = length + 5
 
     # -------------------------------------------------
     # Save CSV

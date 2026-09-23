@@ -1,5 +1,7 @@
 [server]
-maxUploadSize = 2048
+# Megabytes. Streamlit buffers the whole upload in RAM, so the host
+# needs headroom of roughly this size on top of normal usage.
+maxUploadSize = 10240
 port= 4002
 headless = true
 

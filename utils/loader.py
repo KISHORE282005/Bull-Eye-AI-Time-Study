@@ -19,6 +19,8 @@ class TimeStudyLoader:
 
         self.operator_summary = pd.DataFrame()
 
+        self.nva_breakdown = {}
+
     # =====================================================
     # DEFAULT JSON
     # =====================================================
@@ -155,7 +157,27 @@ class TimeStudyLoader:
 
         overall.setdefault("estimated_non_value_added_time", 0)
 
+        overall.setdefault("value_added_percent", 0)
+
+        overall.setdefault("non_value_added_percent", 0)
+
         self.overall = overall
+
+        # ---------------------------------------
+        # NVA Breakdown - which activities are NVA
+        # ---------------------------------------
+
+        self.data.setdefault("nva_breakdown", {})
+
+        breakdown = self.data["nva_breakdown"]
+
+        breakdown.setdefault("by_category", [])
+
+        breakdown.setdefault("activities", [])
+
+        breakdown.setdefault("unrecorded_idle_seconds", 0)
+
+        self.nva_breakdown = breakdown
 
         # ---------------------------------------
         # Activities
@@ -174,6 +196,8 @@ class TimeStudyLoader:
             "process_name",
 
             "process_operation",
+
+            "process_description",
 
             "start_timestamp",
 
@@ -205,11 +229,17 @@ class TimeStudyLoader:
 
             "toct",
 
+            "va",
+
             "nva",
 
             "r_nva",
 
+            "nva_category",
+
             "nva_reason",
+
+            "walking_steps",
 
             "waste_type",
 
@@ -217,7 +247,14 @@ class TimeStudyLoader:
 
         ]
 
-        string_cols = {"nva_reason", "waste_type", "value_added", "operator"}
+        string_cols = {
+            "process_description",
+            "nva_category",
+            "nva_reason",
+            "waste_type",
+            "value_added",
+            "operator"
+        }
 
         for col in required:
 
@@ -297,6 +334,113 @@ class TimeStudyLoader:
     def get_activity_dataframe(self):
 
         return self.activities
+
+    def get_nva_breakdown(self):
+        """
+        The NVA rollup by condition plus the list of exactly which
+        activities were charged as Non Value Added.
+        """
+
+        return self.nva_breakdown
+
+    def get_nva_table(self):
+        """
+        The NVA activities with report-ready column names.
+        """
+
+        columns = [
+
+            ("process_no", "Process No"),
+
+            ("process_name", "Process Name"),
+
+            ("operator", "Operator"),
+
+            ("process_operation", "Operation"),
+
+            ("start_timestamp", "Start Time"),
+
+            ("end_timestamp", "End Time"),
+
+            ("nva", "NVA (sec)"),
+
+            ("nva_category", "NVA Condition"),
+
+            ("nva_reason", "NVA Reason"),
+
+            ("process_description", "What The Operator Is Doing")
+
+        ]
+
+        rows = pd.DataFrame(
+            self.nva_breakdown.get("activities", [])
+        )
+
+        if rows.empty:
+            return pd.DataFrame(
+                columns=[header for _, header in columns]
+            )
+
+        text_cols = {
+            "process_name",
+            "operator",
+            "process_operation",
+            "start_timestamp",
+            "end_timestamp",
+            "nva_category",
+            "nva_reason",
+            "process_description"
+        }
+
+        for key, _ in columns:
+
+            if key not in rows.columns:
+
+                rows[key] = "" if key in text_cols else 0
+
+        rows = rows[[key for key, _ in columns]]
+
+        rows.columns = [header for _, header in columns]
+
+        return rows
+
+    def get_nva_category_table(self):
+        """
+        NVA time rolled up by each of the seven conditions.
+        """
+
+        columns = [
+
+            ("nva_category", "NVA Condition"),
+
+            ("definition", "What This Condition Means"),
+
+            ("activities", "Activities"),
+
+            ("nva_seconds", "NVA Time (sec)")
+
+        ]
+
+        rows = pd.DataFrame(
+            self.nva_breakdown.get("by_category", [])
+        )
+
+        if rows.empty:
+            return pd.DataFrame(
+                columns=[header for _, header in columns]
+            )
+
+        for key, _ in columns:
+
+            if key not in rows.columns:
+
+                rows[key] = "" if key in {"nva_category", "definition"} else 0
+
+        rows = rows[[key for key, _ in columns]]
+
+        rows.columns = [header for _, header in columns]
+
+        return rows
 
     def get_operator_count(self):
 

@@ -1,7 +1,13 @@
 import re
 from datetime import datetime
 from collections import defaultdict
-from utils.nva_reasons import assign_nva_reasons
+from utils.nva_reasons import (
+    assign_nva_reasons,
+    assign_nva_categories,
+    NVA_CATEGORIES,
+    NVA_CATEGORY_DEFINITIONS,
+    IDLE_TIME
+)
 
 
 # ============================================================
@@ -269,6 +275,15 @@ def validate_activity(activity):
 
     activity.setdefault("start_timestamp", start_timestamp)
     activity.setdefault("end_timestamp", end_timestamp)
+
+    # -----------------------------------
+    # NVA fields - filled by the seven
+    # conditions in utils/nva_reasons.py
+    # -----------------------------------
+
+    activity.setdefault("nva_category", "")
+    activity.setdefault("nva_reason", "")
+    activity.setdefault("walking_steps", 0)
 
     # -----------------------------------
     # Operator tag (never blank)
@@ -632,6 +647,7 @@ def calculate_operator_analysis(activities):
 
         toct = 0.0
         nva = 0.0
+        va = 0.0
         r_nva = 0.0
 
         intervals = []
@@ -660,6 +676,8 @@ def calculate_operator_analysis(activities):
             toct += activity.get("toct", 0) or 0
 
             nva += activity.get("nva", 0) or 0
+
+            va += activity.get("va", 0) or 0
 
             r_nva += activity.get("r_nva", 0) or 0
 
@@ -730,13 +748,21 @@ def calculate_operator_analysis(activities):
 
             utilisation = 0.0
 
-        total_nva = round(waiting + walking + rework + gap, 3)
+        # --------------------------------------------
+        # NVA comes from the seven conditions on each
+        # row, plus the time this operator has no
+        # recorded activity for at all.
+        # --------------------------------------------
+
+        total_nva = round(nva + gap, 3)
+
+        total_va = round(va, 3)
 
         accounted = round(working + waiting + walking + rework, 3)
 
         if accounted > 0:
 
-            va_percent = round((working / accounted) * 100, 1)
+            va_percent = round((total_va / accounted) * 100, 1)
 
         else:
 
@@ -774,6 +800,8 @@ def calculate_operator_analysis(activities):
 
             "toct": round(toct, 3),
 
+            "va": total_va,
+
             "nva": round(total_nva, 3),
 
             "r_nva": round(r_nva, 3),
@@ -793,70 +821,62 @@ def calculate_operator_analysis(activities):
 
 def calculate_process_metrics(activities):
     """
-    Calculate TOCT, NVA and R-NVA
-    for every individual process.
+    Calculate TOCT, NVA, R-NVA and VA for every individual process.
+
+    NVA is charged from the SEVEN CONDITIONS in utils/nva_reasons.py,
+    not from the operation type alone. A 3 second pause or a 4 step
+    walk carries no NVA - it is normal work.
+
+    Must run AFTER assign_nva_categories().
     """
 
     for activity in activities:
 
-        duration = activity.get("duration", 0)
+        duration = round(activity.get("duration", 0) or 0, 3)
 
         activity_type = activity.get(
             "activity_type",
             "Working"
         )
 
+        category = str(
+            activity.get("nva_category", "") or ""
+        ).strip()
+
         # ----------------------------------------
         # Reset values
         # ----------------------------------------
 
-        activity["toct"] = 0.0
+        # TOCT is the total observed cycle time of the step and
+        # always carries the full duration.
+
+        activity["toct"] = duration
+
         activity["nva"] = 0.0
+        activity["va"] = 0.0
         activity["r_nva"] = 0.0
 
         # ----------------------------------------
-        # Working
+        # One of the seven conditions matched:
+        # the whole step is Non Value Added
         # ----------------------------------------
 
-        if activity_type == "Working":
+        if category:
 
-            activity["toct"] = round(duration,3)
+            activity["nva"] = duration
 
-        # ----------------------------------------
-        # Waiting
-        # ----------------------------------------
+            if activity_type == "Rework":
 
-        elif activity_type == "Waiting":
-
-            activity["toct"] = round(duration,3)
-
-            activity["nva"] = round(duration,3)
+                activity["r_nva"] = duration
 
         # ----------------------------------------
-        # Walking
+        # No condition matched: the step is
+        # productive, Value Added work
         # ----------------------------------------
-
-        elif activity_type == "Walking":
-
-            activity["toct"] = round(duration,3)
-
-            activity["nva"] = round(duration,3)
-
-        # ----------------------------------------
-        # Rework
-        # ----------------------------------------
-
-        elif activity_type == "Rework":
-
-            activity["toct"] = round(duration,3)
-
-            activity["nva"] = round(duration,3)
-
-            activity["r_nva"] = round(duration,3)
 
         else:
 
-            activity["toct"] = round(duration,3)
+            activity["va"] = duration
 
     return activities
 
@@ -906,6 +926,7 @@ def calculate_overall_analysis(activities, operator_summary=None):
     total_walking = 0.0
     total_rework = 0.0
     total_nva = 0.0
+    total_va = 0.0
 
     starts = []
     ends = []
@@ -916,6 +937,13 @@ def calculate_overall_analysis(activities, operator_summary=None):
             "duration",
             0
         )
+
+        # NVA and VA come from the seven conditions, charged on
+        # each row by calculate_process_metrics()
+
+        total_nva += activity.get("nva", 0) or 0
+
+        total_va += activity.get("va", 0) or 0
 
         starts.append(
             timestamp_to_seconds(
@@ -944,19 +972,13 @@ def calculate_overall_analysis(activities, operator_summary=None):
 
             total_waiting += duration
 
-            total_nva += duration
-
         elif activity_type == "Walking":
 
             total_walking += duration
 
-            total_nva += duration
-
         elif activity_type == "Rework":
 
             total_rework += duration
-
-            total_nva += duration
 
     # --------------------------------------------------
     # Total observed time = first start -> last end
@@ -1057,17 +1079,157 @@ def calculate_overall_analysis(activities, operator_summary=None):
 
     overall["inspection_time"] = 0.0
 
-    overall["estimated_value_added_time"] = round(
-        total_working,
-        3
-    )
+    # --------------------------------------------------
+    # VA  = every step no NVA condition matched
+    # NVA = every step one of the seven conditions
+    #       matched, plus the time nobody was recorded
+    #       doing anything at all
+    # --------------------------------------------------
 
-    overall["estimated_non_value_added_time"] = round(
-        total_nva,
-        3
-    )
+    total_nva = round(total_nva + gap_time, 3)
+
+    total_va = round(total_va, 3)
+
+    overall["estimated_value_added_time"] = total_va
+
+    overall["estimated_non_value_added_time"] = total_nva
+
+    accounted = round(total_va + total_nva, 3)
+
+    if accounted > 0:
+
+        overall["value_added_percent"] = round(
+            (total_va / accounted) * 100,
+            1
+        )
+
+        overall["non_value_added_percent"] = round(
+            (total_nva / accounted) * 100,
+            1
+        )
+
+    else:
+
+        overall["value_added_percent"] = 0.0
+
+        overall["non_value_added_percent"] = 0.0
 
     return overall
+
+
+# ============================================================
+# NVA BREAKDOWN - WHICH ACTIVITIES ARE NVA
+# ============================================================
+
+def calculate_nva_breakdown(activities, gap_time=0.0):
+    """
+    Roll the NVA time up by condition, and list every activity that
+    was charged as NVA.
+
+    This is what the Overall Analysis sheet shows when the reader wants
+    to know WHICH activities the NVA number is made of.
+    """
+
+    rows = []
+
+    totals = {category: {"count": 0, "seconds": 0.0} for category in NVA_CATEGORIES}
+
+    for activity in activities:
+
+        category = str(
+            activity.get("nva_category", "") or ""
+        ).strip()
+
+        nva = round(activity.get("nva", 0) or 0, 3)
+
+        if not category or nva <= 0:
+            continue
+
+        if category not in totals:
+
+            totals[category] = {"count": 0, "seconds": 0.0}
+
+        totals[category]["count"] += 1
+
+        totals[category]["seconds"] += nva
+
+        rows.append({
+
+            "process_no": activity.get("process_no", 0),
+
+            "process_name": activity.get("process_name", ""),
+
+            "process_operation": activity.get("process_operation", ""),
+
+            "process_description": activity.get("process_description", ""),
+
+            "operator": activity.get("operator", ""),
+
+            "start_timestamp": activity.get("start_timestamp", ""),
+
+            "end_timestamp": activity.get("end_timestamp", ""),
+
+            "duration": round(activity.get("duration", 0) or 0, 3),
+
+            "nva": nva,
+
+            "nva_category": category,
+
+            "nva_reason": activity.get("nva_reason", ""),
+
+            "walking_steps": activity.get("walking_steps", 0)
+
+        })
+
+    # --------------------------------------------------
+    # Time no operator was recorded for is idle time too
+    # --------------------------------------------------
+
+    gap_time = round(gap_time or 0.0, 3)
+
+    if gap_time > 0:
+
+        totals[IDLE_TIME]["seconds"] += gap_time
+
+    summary = [
+
+        {
+
+            "nva_category": category,
+
+            "definition": NVA_CATEGORY_DEFINITIONS.get(category, ""),
+
+            "activities": totals[category]["count"],
+
+            "nva_seconds": round(totals[category]["seconds"], 3)
+
+        }
+
+        for category in NVA_CATEGORIES
+
+        if totals[category]["seconds"] > 0 or totals[category]["count"] > 0
+
+    ]
+
+    summary.sort(
+        key=lambda row: row["nva_seconds"],
+        reverse=True
+    )
+
+    rows.sort(
+        key=lambda row: row["nva"],
+        reverse=True
+    )
+
+    return {
+
+        "unrecorded_idle_seconds": gap_time,
+
+        "by_category": summary,
+
+        "activities": rows
+
+    }
 # ============================================================
 # MAIN TIME STUDY ENGINE
 # ============================================================
@@ -1137,6 +1299,17 @@ def calculate_time_study(data):
     )
 
     # -----------------------------------------
+    # Apply the SEVEN NVA CONDITIONS.
+    #
+    # This decides what is Non Value Added and
+    # MUST run before the TOCT / NVA maths.
+    # -----------------------------------------
+
+    validated = assign_nva_categories(
+        validated
+    )
+
+    # -----------------------------------------
     # Calculate Process Metrics
     # -----------------------------------------
 
@@ -1170,6 +1343,15 @@ def calculate_time_study(data):
     )
 
     # -----------------------------------------
+    # NVA Breakdown - which activities are NVA
+    # -----------------------------------------
+
+    nva_breakdown = calculate_nva_breakdown(
+        validated,
+        overall.get("unaccounted_idle_time", 0)
+    )
+
+    # -----------------------------------------
     # Save Results
     # -----------------------------------------
 
@@ -1178,6 +1360,8 @@ def calculate_time_study(data):
     data["operator_analysis"] = operator_summary
 
     data["overall_analysis"] = overall
+
+    data["nva_breakdown"] = nva_breakdown
 
     data["total_processes"] = len(validated)
 

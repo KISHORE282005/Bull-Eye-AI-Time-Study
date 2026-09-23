@@ -1,6 +1,7 @@
 from google.genai import types  # Import types to configure the model
 from .config import client, MODEL
 from .prompts import TIME_STUDY_PROMPT
+from .report import OUTPUT  # Project-root /output, not the current folder
 
 
 def analyze_video(video, on_progress=None):
@@ -36,9 +37,11 @@ def analyze_video(video, on_progress=None):
         raise RuntimeError("Gemini returned an empty response.")
 
     # Save raw Gemini response
-    with open("output/gemini_response.txt", "w", encoding="utf-8") as f:
+    response_file = OUTPUT / "gemini_response.txt"
+
+    with open(response_file, "w", encoding="utf-8") as f:
         f.write(text)
 
-    print("Gemini response saved to output/gemini_response.txt")
+    print(f"Gemini response saved to {response_file}")
 
     return text

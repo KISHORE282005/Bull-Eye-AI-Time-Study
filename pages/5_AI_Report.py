@@ -50,6 +50,12 @@ operator_count = loader.get_operator_count()
 
 operator_table = loader.get_operator_table()
 
+nva_breakdown = loader.get_nva_breakdown()
+
+nva_table = loader.get_nva_table()
+
+nva_category_table = loader.get_nva_category_table()
+
 # ==========================================================
 # EXECUTIVE SUMMARY
 # ==========================================================
@@ -117,13 +123,81 @@ k2.metric(
 
 k3.metric(
     "NVA Time",
-    f'{overall["estimated_non_value_added_time"]} sec'
+    f'{overall["estimated_non_value_added_time"]} sec',
+    f'{overall.get("non_value_added_percent", 0)}% of work content',
+    delta_color="inverse"
 )
 
 k4.metric(
     "Operators",
     operator_count
 )
+
+st.divider()
+
+# ==========================================================
+# NVA BREAKDOWN - WHICH ACTIVITIES ARE NVA
+# ==========================================================
+
+st.header("Non Value Added Analysis")
+
+st.caption(
+    "An activity is Non Value Added when it matches one of seven conditions: "
+    "excess walking (more than 5-10 steps), searching for tools at the workstation, "
+    "rework, idle time above 5 seconds, excess movement, speaking, or the operator "
+    "not being available at the workstation."
+)
+
+n1, n2, n3 = st.columns(3)
+
+n1.metric(
+    "Total Time",
+    f'{overall["total_time_seconds"]} sec'
+)
+
+n2.metric(
+    "VA Time",
+    f'{overall["estimated_value_added_time"]} sec',
+    f'{overall.get("value_added_percent", 0)}% of work content'
+)
+
+n3.metric(
+    "NVA Time",
+    f'{overall["estimated_non_value_added_time"]} sec',
+    f'{overall.get("non_value_added_percent", 0)}% of work content',
+    delta_color="inverse"
+)
+
+if nva_category_table.empty:
+
+    st.success("No activity matched any of the seven NVA conditions.")
+
+else:
+
+    st.subheader("Which condition cost the time")
+
+    st.dataframe(
+        nva_category_table,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.subheader("Exactly which activities are Non Value Added")
+
+    st.dataframe(
+        nva_table,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    unrecorded = nva_breakdown.get("unrecorded_idle_seconds", 0)
+
+    if unrecorded:
+
+        st.info(
+            f"A further {unrecorded} sec inside the study window has no recorded "
+            "activity at all. It is counted as idle time."
+        )
 
 st.divider()
 
@@ -221,6 +295,10 @@ report_df = df[[
     "process_no",
     "process_name",
     "process_operation",
+
+    # What the person is doing and which industrial process it is
+    "process_description",
+
     "start_timestamp",
     "end_timestamp",
     "duration",
@@ -235,8 +313,10 @@ report_df = df[[
     "op_wt4",
     "op_wt5",
     "toct",
+    "va",
     "nva",
 
+    "nva_category",
     "nva_reason",
 
     # Appended last so the original columns are unchanged
@@ -247,6 +327,7 @@ report_df.columns = [
     "Process No",
     "Process Name",
     "Process Operation",
+    "Process Description",
     "Start Time",
     "End Time",
     "Duration",
@@ -261,8 +342,10 @@ report_df.columns = [
     "Op WT4 (min)",
     "Op WT5 (min)",
     "TOCT (min)",
+    "VA (min)",
     "NVA (min)",
 
+    "NVA Condition",
     "NVA Reason",
 
     "Operator"
@@ -271,7 +354,14 @@ report_df.columns = [
 st.dataframe(
     report_df,
     use_container_width=True,
-    hide_index=True
+    hide_index=True,
+    column_config={
+        "Process Description": st.column_config.TextColumn(
+            "Process Description",
+            help="What the operator is doing and which industrial process it belongs to",
+            width="large"
+        )
+    }
 )
 
 st.divider()
@@ -288,9 +378,13 @@ summary_df = pd.DataFrame({
 
         "Total Processes",
 
+        "Total Time",
+
         "Total Duration",
 
         "Total TOCT",
+
+        "Total VA",
 
         "Total NVA",
 
@@ -302,13 +396,17 @@ summary_df = pd.DataFrame({
 
         len(df),
 
-        round(df["duration"].sum(),2),
+        round(overall.get("total_time_seconds", 0), 2),
 
-        round(df["toct"].sum(),2),
+        round(df["duration"].sum(), 2),
 
-        round(df["nva"].sum(),2),
+        round(df["toct"].sum(), 2),
 
-       
+        round(df["va"].sum(), 2),
+
+        round(df["nva"].sum(), 2),
+
+        round(df["r_nva"].sum(), 2)
 
     ]
 
@@ -378,7 +476,11 @@ with col3:
 
         opportunities,
 
-        summary
+        summary,
+
+        nva_breakdown=nva_breakdown,
+
+        total_processes=summary["total_processes"]
 
     )
 

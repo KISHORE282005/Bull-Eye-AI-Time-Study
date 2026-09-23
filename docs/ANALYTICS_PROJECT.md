@@ -142,7 +142,7 @@ observation.
 |----------|---------------|
 | **Primary source** | Shop-floor video recording of a manufacturing operation |
 | **Formats accepted** | `.mp4`, `.avi`, `.mov`, `.mkv` |
-| **Maximum size** | 2 GB (`maxUploadSize = 2048` in [.streamlit/config.toml](../.streamlit/config.toml)) |
+| **Maximum size** | 10 GB (`maxUploadSize = 10240` in [.streamlit/config.toml](../.streamlit/config.toml)); files over 2 GB are downscaled to 720p by [gemini/uploader.py](../gemini/uploader.py) to fit the Gemini Files API's 2 GB per-file cap |
 | **Unit of observation** | One manufacturing process step performed by the main operator |
 | **Sampling frame** | The main operator only — background personnel are excluded by design |
 | **Generated dataset** | `output/time_study.json`, `output/activities.csv`, `output/{video_name}_Time_Study_Report.xlsx` |
@@ -262,7 +262,8 @@ statistical — see §3.4 for why.
 
 **(a) Modality reduction (the largest reduction in the system)**
 
-A 2 GB video at 30 fps is on the order of 10⁴–10⁵ frames × millions of pixels. The
+A 2 GB video at 30 fps is on the order of 10⁴–10⁵ frames × millions of pixels (larger
+uploads are downscaled to this budget before analysis). The
 vision-language model reduces this to a compact structured table of ~20 process records ×
 6 fields.
 
@@ -358,7 +359,7 @@ The perception model was selected against eight weighted criteria:
 | # | Criterion | Requirement | How Gemini 2.5 Flash satisfies it |
 |---|-----------|-------------|-----------------------------------|
 | **C1** | **Native video understanding** | Must process video directly, not sampled stills | Natively multimodal over video input |
-| **C2** | **Long-context capacity** | Must reason over a full production cycle, up to 2 GB | Long context window handles extended video |
+| **C2** | **Long-context capacity** | Must reason over a full production cycle, up to the Files API's 2 GB per-file cap | Long context window handles extended video |
 | **C3** | **Temporal grounding** | Must emit precise `HH:MM:SS.sss` boundaries | Returns frame-accurate timestamps |
 | **C4** | **Zero-shot capability** | No labelled training data exists | Strong instruction-following without fine-tuning |
 | **C5** | **Structured output** | Must return strictly parseable JSON | Reliable schema-constrained JSON generation |

@@ -225,11 +225,27 @@ uploaded_video = st.file_uploader(
     key="uploaded_video",
 )
 
-MAX_SIZE = 2 * 1024 * 1024 * 1024  # 2 GB
+MAX_SIZE = 10 * 1024 * 1024 * 1024  # 10 GB
+
+# Above this the file is re-encoded before it reaches Gemini, which
+# refuses anything over 2 GB per file.
+COMPRESS_ABOVE = 2 * 1024 * 1024 * 1024  # 2 GB
+
+# Inline playback pulls the whole file into the browser, so a big video
+# is described instead of previewed.
+PREVIEW_LIMIT = 500 * 1024 * 1024  # 500 MB
+
+
+def format_size(num_bytes):
+    """Bytes as MB below 1 GB, GB above it."""
+    if num_bytes >= 1024 * 1024 * 1024:
+        return f"{round(num_bytes / (1024 ** 3), 2)} GB"
+    return f"{round(num_bytes / (1024 * 1024), 2)} MB"
+
 
 if uploaded_video is not None:
     if uploaded_video.size > MAX_SIZE:
-        st.error("❌ Maximum upload size is 2 GB.")
+        st.error("❌ Maximum upload size is 10 GB.")
         st.stop()
 
     if st.session_state.video_path is None:
@@ -244,20 +260,30 @@ if uploaded_video is not None:
         st.session_state.video_name = uploaded_video.name
 
     st.success("✅ Video uploaded successfully.")
-    st.video(st.session_state.video_path)
+
+    if uploaded_video.size <= PREVIEW_LIMIT:
+        st.video(st.session_state.video_path)
+    else:
+        st.caption(
+            "▶ Preview skipped — the file is too large to play in the "
+            "browser. Analysis is unaffected."
+        )
 
     col1, col2 = st.columns(2)
     with col1:
         st.write(f"**File Name :** {uploaded_video.name}")
     with col2:
-        st.write(
-            f"**File Size :** {round(uploaded_video.size / (1024 * 1024), 2)} MB"
-        )
+        st.write(f"**File Size :** {format_size(uploaded_video.size)}")
 
-    temp_size = round(
-        Path(st.session_state.video_path).stat().st_size / (1024 * 1024), 2
-    )
-    st.info(f"📁 Temporary Processing File : {temp_size} MB")
+    temp_size = Path(st.session_state.video_path).stat().st_size
+    st.info(f"📁 Temporary Processing File : {format_size(temp_size)}")
+
+    if uploaded_video.size > COMPRESS_ABOVE:
+        st.warning(
+            "🗜 This video is over 2 GB, which is Gemini's per-file limit. "
+            "It will be compressed to 720p automatically before analysis — "
+            "expect an extra 10–40 minutes before Step 2 begins."
+        )
 
 st.divider()
 
@@ -298,7 +324,15 @@ if analyze:
             progress.progress(10)
             log_box.write("Uploading temporary video...")
 
-            gemini_video = upload_video(video_path)
+            prepare_status = st.empty()
+
+            def on_prepare(fraction, action):
+                prepare_status.info(
+                    f"🗜 {action} video for upload... {int(fraction * 100)}%"
+                )
+
+            gemini_video = upload_video(video_path, on_progress=on_prepare)
+            prepare_status.empty()
             st.session_state.gemini_file = gemini_video
             progress.progress(25)
 
@@ -509,7 +543,7 @@ else:
         "process_description", "start_timestamp", "end_timestamp",
         "duration", "op1", "op2", "op3", "op4", "op5",
         "op_wt1", "op_wt2", "op_wt3", "op_wt4", "op_wt5",
-        "toct", "nva", "r_nva", "nva_reason",
+        "toct", "va", "nva", "r_nva", "nva_category", "nva_reason",
 
         # Added at the end so the original columns stay untouched
         "operator",
@@ -526,6 +560,100 @@ else:
         use_container_width=True,
         hide_index=True,
         height=600,
+        column_config={
+            "process_description": st.column_config.TextColumn(
+                "process_description",
+                help=(
+                    "What the operator is doing and which industrial "
+                    "process the step belongs to"
+                ),
+                width="large",
+            )
+        },
+    )
+
+# ==========================================================
+# NVA BREAKDOWN
+# ==========================================================
+
+st.divider()
+
+st.subheader("🔻 Non Value Added Analysis")
+
+st.caption(
+    "An activity is Non Value Added when it matches one of seven conditions: "
+    "excess walking (more than 5-10 steps), searching for tools at the workstation, "
+    "rework, idle time above 5 seconds, excess movement, speaking, or the operator "
+    "not being available at the workstation."
+)
+
+nva_breakdown = data.get("nva_breakdown", {}) or {}
+
+nva_categories = nva_breakdown.get("by_category", []) or []
+
+nva_activities = nva_breakdown.get("activities", []) or []
+
+v1, v2, v3 = st.columns(3)
+
+v1.metric("Total Time", f"{total_time:.2f} sec")
+
+v2.metric(
+    "VA Time",
+    f"{va:.2f} sec",
+    f'{overall.get("value_added_percent", 0)}% of work content',
+)
+
+v3.metric(
+    "NVA Time",
+    f"{nva:.2f} sec",
+    f'{overall.get("non_value_added_percent", 0)}% of work content',
+    delta_color="inverse",
+)
+
+if not nva_categories:
+    st.success("No activity matched any of the seven NVA conditions.")
+
+else:
+    st.markdown("**Which condition cost the time**")
+
+    st.dataframe(
+        pd.DataFrame(nva_categories).rename(
+            columns={
+                "nva_category": "NVA Condition",
+                "definition": "What This Condition Means",
+                "activities": "Activities",
+                "nva_seconds": "NVA Time (sec)",
+            }
+        ),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    st.markdown("**Exactly which activities are Non Value Added**")
+
+    st.dataframe(
+        pd.DataFrame(nva_activities)[
+            [
+                "process_no", "process_name", "operator", "process_operation",
+                "start_timestamp", "end_timestamp", "nva",
+                "nva_category", "nva_reason", "process_description",
+            ]
+        ].rename(
+            columns={
+                "process_no": "Process No",
+                "process_name": "Process Name",
+                "operator": "Operator",
+                "process_operation": "Operation",
+                "start_timestamp": "Start Time",
+                "end_timestamp": "End Time",
+                "nva": "NVA (sec)",
+                "nva_category": "NVA Condition",
+                "nva_reason": "NVA Reason",
+                "process_description": "What The Operator Is Doing",
+            }
+        ),
+        use_container_width=True,
+        hide_index=True,
     )
 
 # ==========================================================
