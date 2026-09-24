@@ -22,6 +22,7 @@ from gemini.parser import parse_json
 from gemini.report import save_report
 
 from utils.calculations import calculate_time_study
+from utils.export import to_operation_text, format_sec_min, add_repeat_count
 
 # ==========================================================
 # PAGE CONFIG
@@ -492,7 +493,7 @@ st.subheader("📊 Executive KPI Dashboard")
 k1, k2, k3, k4, k5, k6 = st.columns(6)
 
 k1.metric("Processes", total)
-k2.metric("Total Time", f"{total_time:.2f} sec")
+k2.metric("Total Time", format_sec_min(total_time))
 k3.metric("Cycle Time", f"{cycle:.2f} sec")
 k4.metric("Working Time", f"{working:.2f} sec")
 k5.metric("Walking Time", f"{walking:.2f} sec")
@@ -544,16 +545,15 @@ else:
         "duration", "op1", "op2", "op3", "op4", "op5",
         "op_wt1", "op_wt2", "op_wt3", "op_wt4", "op_wt5",
         "toct", "va", "nva", "r_nva", "nva_category", "nva_reason",
-
-        # Added at the end so the original columns stay untouched
-        "operator",
     ]
 
     for col in required_columns:
         if col not in df.columns:
             df[col] = ""
 
-    df = df[required_columns]
+    df = df[required_columns].rename(columns={"r_nva": "required_nva"})
+
+    df["process_description"] = df["process_description"].map(to_operation_text)
 
     st.dataframe(
         df,
@@ -563,10 +563,7 @@ else:
         column_config={
             "process_description": st.column_config.TextColumn(
                 "process_description",
-                help=(
-                    "What the operator is doing and which industrial "
-                    "process the step belongs to"
-                ),
+                help="The operation performed in this step",
                 width="large",
             )
         },
@@ -595,7 +592,7 @@ nva_activities = nva_breakdown.get("activities", []) or []
 
 v1, v2, v3 = st.columns(3)
 
-v1.metric("Total Time", f"{total_time:.2f} sec")
+v1.metric("Total Time", format_sec_min(total_time))
 
 v2.metric(
     "VA Time",
@@ -631,25 +628,26 @@ else:
 
     st.markdown("**Exactly which activities are Non Value Added**")
 
+    nva_df = pd.DataFrame(add_repeat_count(nva_activities))
+
     st.dataframe(
-        pd.DataFrame(nva_activities)[
+        nva_df[
             [
-                "process_no", "process_name", "operator", "process_operation",
+                "process_no", "process_name", "repeat_count", "process_operation",
                 "start_timestamp", "end_timestamp", "nva",
-                "nva_category", "nva_reason", "process_description",
+                "nva_category", "nva_reason",
             ]
         ].rename(
             columns={
                 "process_no": "Process No",
                 "process_name": "Process Name",
-                "operator": "Operator",
+                "repeat_count": "Repeat Count",
                 "process_operation": "Operation",
                 "start_timestamp": "Start Time",
                 "end_timestamp": "End Time",
                 "nva": "NVA (sec)",
                 "nva_category": "NVA Condition",
                 "nva_reason": "NVA Reason",
-                "process_description": "What The Operator Is Doing",
             }
         ),
         use_container_width=True,

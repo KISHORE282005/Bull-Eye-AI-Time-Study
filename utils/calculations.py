@@ -8,6 +8,7 @@ from utils.nva_reasons import (
     NVA_CATEGORY_DEFINITIONS,
     IDLE_TIME
 )
+from utils.export import to_operation_text
 
 
 # ============================================================
@@ -272,6 +273,11 @@ def validate_activity(activity):
     activity.setdefault("process_name", "")
     activity.setdefault("process_operation", "")
     activity.setdefault("process_description", "")
+
+    # Process description is stored operation-wise, as one paragraph
+    activity["process_description"] = to_operation_text(
+        activity["process_description"]
+    )
 
     activity.setdefault("start_timestamp", start_timestamp)
     activity.setdefault("end_timestamp", end_timestamp)

@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 
 from utils.loader import TimeStudyLoader
-from utils.export import export_excel, export_json, export_csv
+from utils.export import export_excel, export_json, export_csv, format_sec_min
 from gemini.report import sanitize_video_name
 
 # ==========================================================
@@ -91,7 +91,7 @@ k1.metric(
 
 k2.metric(
     "Total Time",
-    f'{overall["total_time_seconds"]} sec'
+    format_sec_min(overall["total_time_seconds"])
 )
 
 k3.metric(
@@ -152,7 +152,7 @@ n1, n2, n3 = st.columns(3)
 
 n1.metric(
     "Total Time",
-    f'{overall["total_time_seconds"]} sec'
+    format_sec_min(overall["total_time_seconds"])
 )
 
 n2.metric(
@@ -296,7 +296,7 @@ report_df = df[[
     "process_name",
     "process_operation",
 
-    # What the person is doing and which industrial process it is
+    # The operation performed in this step
     "process_description",
 
     "start_timestamp",
@@ -315,12 +315,10 @@ report_df = df[[
     "toct",
     "va",
     "nva",
+    "r_nva",
 
     "nva_category",
-    "nva_reason",
-
-    # Appended last so the original columns are unchanged
-    "operator"
+    "nva_reason"
 ]].copy()
 
 report_df.columns = [
@@ -344,11 +342,10 @@ report_df.columns = [
     "TOCT (min)",
     "VA (min)",
     "NVA (min)",
+    "Required NVA (min)",
 
     "NVA Condition",
-    "NVA Reason",
-
-    "Operator"
+    "NVA Reason"
 ]
 
 st.dataframe(
@@ -358,7 +355,7 @@ st.dataframe(
     column_config={
         "Process Description": st.column_config.TextColumn(
             "Process Description",
-            help="What the operator is doing and which industrial process it belongs to",
+            help="The operation performed in this step",
             width="large"
         )
     }
@@ -388,7 +385,7 @@ summary_df = pd.DataFrame({
 
         "Total NVA",
 
-        "Total Repeat NVA"
+        "Total Required NVA"
 
     ],
 
@@ -396,7 +393,7 @@ summary_df = pd.DataFrame({
 
         len(df),
 
-        round(overall.get("total_time_seconds", 0), 2),
+        format_sec_min(overall.get("total_time_seconds", 0)),
 
         round(df["duration"].sum(), 2),
 
@@ -411,6 +408,9 @@ summary_df = pd.DataFrame({
     ]
 
 })
+
+# Total Time is text ("sec (min)"), so keep the column one type
+summary_df["Value"] = summary_df["Value"].astype(str)
 
 st.dataframe(
 

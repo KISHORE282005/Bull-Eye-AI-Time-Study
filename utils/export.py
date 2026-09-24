@@ -1,4 +1,5 @@
 import json
+import re
 import pandas as pd
 from pathlib import Path
 from io import BytesIO
@@ -6,10 +7,71 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.worksheet.hyperlink import Hyperlink
 from openpyxl.utils import get_column_letter
 
-from utils.nva_reasons import (
-    IDLE_NVA_THRESHOLD_SECONDS,
-    WALKING_STEP_THRESHOLD
-)
+from utils.nva_reasons import NVA_CATEGORIES
+
+
+# ==========================================================
+# REPORT FORMATTING HELPERS
+# ==========================================================
+
+_STEP_NUMBER = re.compile(r"(?:^|(?<=\s))(?:step\s*)?\d+\s*[.)]\s+", re.IGNORECASE)
+
+
+def to_operation_text(text):
+    """
+    Return the process description in operation-wise format: one
+    running paragraph that names the operation, e.g.
+
+        Torque fastening operation - tightening the chassis side
+        bracket bolts with a pneumatic impact wrench ...
+
+    Older reports stored numbered SOP steps ("1. ...\\n2. ..."); the
+    step numbers and line breaks are removed so they read the same way.
+    Running it twice gives the same result.
+    """
+
+    text = str(text or "").strip()
+
+    if not text:
+        return ""
+
+    text = _STEP_NUMBER.sub("", text)
+
+    return " ".join(text.split())
+
+
+def format_sec_min(seconds):
+    """125.4 -> '125.40 sec (2.09 min)'"""
+
+    seconds = float(seconds or 0)
+
+    return f"{seconds:.2f} sec ({seconds / 60:.2f} min)"
+
+
+def _activity_key(name):
+    return " ".join(str(name or "").lower().split())
+
+
+def add_repeat_count(activities):
+    """
+    Give every NVA activity a `repeat_count`: how many NVA activities
+    in the list carry the same process name (case and spacing ignored).
+    """
+
+    activities = [dict(activity) for activity in (activities or [])]
+
+    counts = {}
+
+    for activity in activities:
+        key = _activity_key(activity.get("process_name", ""))
+        counts[key] = counts.get(key, 0) + 1
+
+    for activity in activities:
+        activity["repeat_count"] = counts[
+            _activity_key(activity.get("process_name", ""))
+        ]
+
+    return activities
 
 
 # ==========================================================
@@ -46,10 +108,7 @@ REPORT_COLUMNS = [
     "nva",
     "r_nva",
     "nva_category",
-    "nva_reason",
-
-    # Appended last so the original report columns are unchanged
-    "operator"
+    "nva_reason"
 ]
 
 REPORT_HEADERS = [
@@ -76,11 +135,9 @@ REPORT_HEADERS = [
     "TOCT (min)",
     "VA (min)",
     "NVA (min)",
-    "R-NVA (min)",
+    "Required NVA (min)",
     "NVA Category",
-    "NVA Reason",
-
-    "Operator"
+    "NVA Reason"
 ]
 
 
@@ -93,12 +150,13 @@ REPORT_HEADERS = [
 #   1. How long did the job take, and how much of it was
 #      Value Added versus Non Value Added?
 #   2. Which of the seven NVA conditions cost the most time?
-#   3. WHICH ACTIVITIES are the NVA - by name, with the
-#      operator, the timestamps and the reason.
+#   3. WHICH ACTIVITIES are the NVA - the seven conditions with
+#      a count of processes in each. Click a count to jump to
+#      the NVA Details sheet, which lists those processes.
 #
 # The NVA figure at the top is a link. Click it and Excel
-# jumps straight to the list of NVA activities. Each activity
-# there links back to its row on the Time Study sheet.
+# jumps straight to the NVA list. Each process on the NVA
+# Details sheet links back to its row on the Time Study sheet.
 # ==========================================================
 
 SECTION_FILL = PatternFill(fill_type="solid", fgColor="C00000")
@@ -126,7 +184,7 @@ OVERALL_LABELS = {
     "operator_working_time": "Operator Working Time (sec)",
     "walking_time": "Walking Time (sec)",
     "operator_waiting_time": "Operator Waiting Time (sec)",
-    "rework_time": "Rework Time (sec)",
+    "rework_time": "Required NVA Time (sec)",
     "operator_idle_time": "Operator Idle Time (sec)",
     "unaccounted_idle_time": "Unrecorded Idle Time (sec)",
     "inspection_time": "Inspection Time (sec)",
@@ -200,6 +258,112 @@ def _link(cell, location, text=None):
     cell.font = LINK_FONT
 
 
+NVA_DETAILS_SHEET = "NVA Details"
+
+
+def _write_nva_details_sheet(
+    overall_sheet,
+    members_by_condition,
+    list_row,
+    time_study_sheet,
+    time_study_rows
+):
+    """
+    Build the NVA Details sheet next to the Overall Analysis sheet:
+    one block per NVA condition that has processes, listing Process
+    No, Process Name, Start / End Time and NVA sec.
+
+    Returns {condition: first row of its block}, so the counts on
+    the Overall Analysis sheet can link straight to it.
+    """
+
+    workbook = overall_sheet.parent
+
+    if NVA_DETAILS_SHEET in workbook.sheetnames:
+        del workbook[NVA_DETAILS_SHEET]
+
+    sheet = workbook.create_sheet(
+        NVA_DETAILS_SHEET,
+        workbook.index(overall_sheet) + 1
+    )
+
+    back = f"'{overall_sheet.title}'!A{list_row}"
+
+    width = 5
+
+    row = 1
+
+    targets = {}
+
+    for condition, members in members_by_condition.items():
+
+        if not members:
+            continue
+
+        targets[condition] = row
+
+        row = _section(
+            sheet,
+            row,
+            f"{condition.upper()} - {len(members)} "
+            f"{'PROCESS' if len(members) == 1 else 'PROCESSES'}",
+            width
+        )
+
+        row = _head(
+            sheet,
+            row,
+            ["Process No", "Process Name", "Start Time", "End Time", "NVA Time (sec)"]
+        )
+
+        for entry in members:
+
+            process_no = entry.get("process_no", "")
+
+            number_cell = sheet.cell(row=row, column=1, value=process_no)
+
+            # Link the process number back to its row on the Time
+            # Study sheet, so the reader can see it in context.
+
+            target = time_study_rows.get(process_no)
+
+            if target:
+
+                _link(
+                    number_cell,
+                    f"'{time_study_sheet}'!A{target}"
+                )
+
+            sheet.cell(row=row, column=2, value=entry.get("process_name", ""))
+            sheet.cell(row=row, column=3, value=entry.get("start_timestamp", ""))
+            sheet.cell(row=row, column=4, value=entry.get("end_timestamp", ""))
+            sheet.cell(row=row, column=5, value=entry.get("nva", 0)).font = NVA_FONT
+
+            row += 1
+
+        _link(
+            sheet.cell(row=row, column=1),
+            back,
+            "<< Back to NVA activities"
+        )
+
+        row += 2
+
+    if not targets:
+
+        sheet.cell(
+            row=1,
+            column=1,
+            value="No activity matched any of the seven NVA conditions."
+        )
+
+    for index, size in enumerate([16, 46, 16, 16, 16], start=1):
+
+        sheet.column_dimensions[get_column_letter(index)].width = size
+
+    return targets
+
+
 def write_overall_analysis_sheet(
     worksheet,
     overall,
@@ -225,7 +389,9 @@ def write_overall_analysis_sheet(
 
     categories = nva_breakdown.get("by_category", []) or []
 
-    nva_activities = nva_breakdown.get("activities", []) or []
+    nva_activities = add_repeat_count(
+        nva_breakdown.get("activities", []) or []
+    )
 
     unrecorded_idle = round(
         nva_breakdown.get("unrecorded_idle_seconds", 0) or 0,
@@ -262,7 +428,7 @@ def write_overall_analysis_sheet(
         ("Total Time", total_time, 100.0, None),
         ("Value Added (VA) Time", va_time, _percent(va_time, accounted), VA_FONT),
         ("Non Value Added (NVA) Time", nva_time, _percent(nva_time, accounted), NVA_FONT),
-        ("Rework (R-NVA) Time", rework_time, _percent(rework_time, accounted), None)
+        ("Required NVA (R-NVA) Time", rework_time, _percent(rework_time, accounted), None)
     ]
 
     nva_row = None
@@ -286,10 +452,6 @@ def write_overall_analysis_sheet(
 
     worksheet.cell(row=row, column=1, value="Operators")
     worksheet.cell(row=row, column=2, value=overall.get("operator_count", 1))
-    row += 1
-
-    worksheet.cell(row=row, column=1, value="Processes Studied")
-    worksheet.cell(row=row, column=2, value=total_processes)
     row += 1
 
     row += 1
@@ -320,11 +482,18 @@ def write_overall_analysis_sheet(
         ]
     )
 
+    # Condition -> its "Activities" cell here, linked to the NVA list below
+    category_count_cells = {}
+
     if categories:
 
         for entry in categories:
 
             seconds = round(entry.get("nva_seconds", 0) or 0, 3)
+
+            category_count_cells[entry.get("nva_category", "")] = (
+                worksheet.cell(row=row, column=3)
+            )
 
             worksheet.cell(row=row, column=1, value=entry.get("nva_category", ""))
             worksheet.cell(row=row, column=2, value=entry.get("definition", ""))
@@ -378,7 +547,13 @@ def write_overall_analysis_sheet(
     row += 1
 
     # ------------------------------------------------------
-    # 3. THE NVA ACTIVITIES THEMSELVES
+    # 3. NVA ACTIVITIES - ONE ROW PER NVA CONDITION
+    #
+    # Each of the seven NVA conditions gets a row with the count
+    # of processes that fell into it (a repeated activity counts
+    # every time it happens). Click the count to jump to the
+    # "NVA Details" sheet, which lists those processes: Process
+    # No, Process Name, timestamps and NVA sec.
     # ------------------------------------------------------
 
     detail_row = row
@@ -386,77 +561,95 @@ def write_overall_analysis_sheet(
     row = _section(
         worksheet,
         row,
-        "NVA ACTIVITIES - EXACTLY WHICH ACTIVITIES ARE NON VALUE ADDED",
+        "NVA ACTIVITIES - CLICK THE COUNT TO SEE THE PROCESSES",
         width
     )
 
     row = _head(
         worksheet,
         row,
-        [
-            "Process No",
-            "Process Name",
-            "Operator",
-            "Operation",
-            "Start Time",
-            "End Time",
-            "NVA Time (sec)",
-            "NVA Condition",
-            "NVA Reason",
-            "What The Operator Is Doing"
-        ]
+        ["NVA Condition", "Count", "NVA Time (sec)"]
     )
 
-    if nva_activities:
+    seconds_by_category = {
+        entry.get("nva_category", ""): round(entry.get("nva_seconds", 0) or 0, 3)
+        for entry in categories
+    }
 
-        for entry in nva_activities:
-
-            process_no = entry.get("process_no", "")
-
-            number_cell = worksheet.cell(row=row, column=1, value=process_no)
-
-            # Link the process number back to its row on the Time
-            # Study sheet, so the reader can see it in context.
-
-            target = time_study_rows.get(process_no)
-
-            if target:
-
-                _link(
-                    number_cell,
-                    f"'{time_study_sheet}'!A{target}"
-                )
-
-            worksheet.cell(row=row, column=2, value=entry.get("process_name", ""))
-            worksheet.cell(row=row, column=3, value=entry.get("operator", ""))
-            worksheet.cell(row=row, column=4, value=entry.get("process_operation", ""))
-            worksheet.cell(row=row, column=5, value=entry.get("start_timestamp", ""))
-            worksheet.cell(row=row, column=6, value=entry.get("end_timestamp", ""))
-            worksheet.cell(row=row, column=7, value=entry.get("nva", 0))
-            worksheet.cell(row=row, column=8, value=entry.get("nva_category", ""))
-            worksheet.cell(row=row, column=9, value=entry.get("nva_reason", ""))
-
-            worksheet.cell(
-                row=row,
-                column=10,
-                value=entry.get("process_description", "")
-            ).alignment = LEFT
-
-            worksheet.cell(row=row, column=7).font = NVA_FONT
-
-            row += 1
-
-    else:
-
-        worksheet.cell(
-            row=row,
-            column=1,
-            value="No activity matched any of the seven NVA conditions."
+    members_by_condition = {
+        condition: sorted(
+            (
+                entry for entry in nva_activities
+                if entry.get("nva_category", "") == condition
+            ),
+            key=lambda entry: entry.get("process_no", 0) or 0
         )
+        for condition in NVA_CATEGORIES
+    }
+
+    count_cells = {}
+
+    for condition in NVA_CATEGORIES:
+
+        members = members_by_condition[condition]
+
+        seconds = seconds_by_category.get(
+            condition,
+            round(sum(entry.get("nva", 0) or 0 for entry in members), 3)
+        )
+
+        worksheet.cell(row=row, column=1, value=condition)
+        worksheet.cell(row=row, column=3, value=seconds)
+
+        count_cells[condition] = worksheet.cell(
+            row=row,
+            column=2,
+            value=len(members)
+        )
+
+        if members:
+
+            worksheet.cell(row=row, column=1).font = NVA_FONT
+            worksheet.cell(row=row, column=3).font = NVA_FONT
 
         row += 1
 
-    row += 1
+    for column in range(1, 4):
+
+        cell = worksheet.cell(row=row, column=column)
+
+        cell.fill = TOTAL_FILL
+        cell.font = TOTAL_FONT
+
+    worksheet.cell(row=row, column=1, value="TOTAL NVA")
+    worksheet.cell(row=row, column=2, value=len(nva_activities))
+    worksheet.cell(row=row, column=3, value=nva_time)
+
+    row += 2
+
+    # ------------------------------------------------------
+    # NVA Details sheet - the processes behind each count
+    # ------------------------------------------------------
+
+    details = _write_nva_details_sheet(
+        worksheet,
+        members_by_condition,
+        list_row=detail_row,
+        time_study_sheet=time_study_sheet,
+        time_study_rows=time_study_rows
+    )
+
+    for condition, target in details.items():
+
+        location = f"'{NVA_DETAILS_SHEET}'!A{target}"
+
+        _link(count_cells[condition], location)
+
+        # The "Activities" count in the breakdown above jumps
+        # to the same place
+
+        if condition in category_count_cells:
+            _link(category_count_cells[condition], location)
 
     # ------------------------------------------------------
     # 4. EVERY METRIC
@@ -473,47 +666,12 @@ def write_overall_analysis_sheet(
 
         row += 1
 
-    row += 1
+        if key == "total_time_seconds":
 
-    # ------------------------------------------------------
-    # 5. THE RULES THIS REPORT APPLIED
-    # ------------------------------------------------------
+            worksheet.cell(row=row, column=1, value="Total Time (min)")
+            worksheet.cell(row=row, column=2, value=round((value or 0) / 60, 3))
 
-    row = _section(worksheet, row, "HOW NVA WAS DECIDED", width)
-
-    notes = [
-        "An activity is Non Value Added when it matches one of seven conditions: "
-        "excess walking, searching for tools, rework, idle time, excess movement, "
-        "speaking, or the operator not being available at the workstation.",
-
-        f"Idle time is only charged as NVA when it runs longer than "
-        f"{IDLE_NVA_THRESHOLD_SECONDS:.0f} seconds. A shorter pause is a normal "
-        "work pause.",
-
-        f"Walking is only charged as NVA when the operator takes more than "
-        f"{WALKING_STEP_THRESHOLD}-10 steps. A shorter walk inside the workstation "
-        "is part of the job.",
-
-        "Every activity that matched none of the seven conditions is counted as "
-        "Value Added time."
-    ]
-
-    for note in notes:
-
-        worksheet.cell(row=row, column=1, value=note)
-
-        worksheet.merge_cells(
-            start_row=row,
-            start_column=1,
-            end_row=row,
-            end_column=width
-        )
-
-        worksheet.cell(row=row, column=1).alignment = LEFT
-
-        worksheet.row_dimensions[row].height = 30
-
-        row += 1
+            row += 1
 
     # ------------------------------------------------------
     # Make the NVA headline clickable
@@ -537,7 +695,7 @@ def write_overall_analysis_sheet(
     # Column widths
     # ------------------------------------------------------
 
-    widths = [34, 46, 14, 16, 16, 16, 16, 24, 32, 70]
+    widths = [34, 46, 14, 16, 16, 16, 16, 24, 32]
 
     # Row 1 is a merged banner, so the letter comes from the index
     # rather than from the cell.
@@ -590,6 +748,8 @@ def prepare_dataframe(df):
         if col not in df.columns:
 
             df[col] = ""
+
+    df["process_description"] = df["process_description"].map(to_operation_text)
 
     df = df[REPORT_COLUMNS]
 

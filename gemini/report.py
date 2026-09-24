@@ -3,7 +3,7 @@ import re
 import pandas as pd
 from pathlib import Path
 
-from utils.export import write_overall_analysis_sheet
+from utils.export import write_overall_analysis_sheet, to_operation_text
 
 # =========================================================
 # OUTPUT FOLDER
@@ -124,10 +124,7 @@ def save_report(data, video_name=None):
 
         "nva_category",
 
-        "nva_reason",
-
-        # Appended last so the original report columns are unchanged
-        "operator"
+        "nva_reason"
 
     ]
 
@@ -176,7 +173,11 @@ def save_report(data, video_name=None):
 
     activities = activities[
         required_columns
-    ]
+    ].copy()
+
+    activities["process_description"] = (
+        activities["process_description"].map(to_operation_text)
+    )
 
     # -------------------------------------------------
     # Rename Excel Columns
@@ -216,13 +217,11 @@ def save_report(data, video_name=None):
 
         "NVA (sec)",
 
-        "R-NVA (sec)",
+        "Required NVA (sec)",
 
         "NVA Category",
 
-        "NVA Reason",
-
-        "Operator"
+        "NVA Reason"
 
     ]
     # -------------------------------------------------

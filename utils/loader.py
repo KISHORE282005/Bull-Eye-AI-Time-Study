@@ -2,6 +2,8 @@ import json
 import pandas as pd
 from pathlib import Path
 
+from utils.export import to_operation_text, add_repeat_count
+
 
 class TimeStudyLoader:
 
@@ -262,6 +264,11 @@ class TimeStudyLoader:
 
                 self.activities[col] = "" if col in string_cols else 0
 
+        # Older reports stored numbered SOP steps - show them operation-wise
+        self.activities["process_description"] = (
+            self.activities["process_description"].map(to_operation_text)
+        )
+
         # ---------------------------------------
         # Operator Count (1 to 5)
         # ---------------------------------------
@@ -354,7 +361,7 @@ class TimeStudyLoader:
 
             ("process_name", "Process Name"),
 
-            ("operator", "Operator"),
+            ("repeat_count", "Repeat Count"),
 
             ("process_operation", "Operation"),
 
@@ -366,14 +373,12 @@ class TimeStudyLoader:
 
             ("nva_category", "NVA Condition"),
 
-            ("nva_reason", "NVA Reason"),
-
-            ("process_description", "What The Operator Is Doing")
+            ("nva_reason", "NVA Reason")
 
         ]
 
         rows = pd.DataFrame(
-            self.nva_breakdown.get("activities", [])
+            add_repeat_count(self.nva_breakdown.get("activities", []))
         )
 
         if rows.empty:
@@ -383,13 +388,11 @@ class TimeStudyLoader:
 
         text_cols = {
             "process_name",
-            "operator",
             "process_operation",
             "start_timestamp",
             "end_timestamp",
             "nva_category",
-            "nva_reason",
-            "process_description"
+            "nva_reason"
         }
 
         for key, _ in columns:
@@ -479,7 +482,7 @@ class TimeStudyLoader:
 
             ("walking_time", "Walking (sec)"),
 
-            ("rework_time", "Rework (sec)"),
+            ("rework_time", "Required NVA (sec)"),
 
             ("idle_time", "Idle (sec)"),
 
