@@ -578,10 +578,12 @@ st.divider()
 st.subheader("🔻 Non Value Added Analysis")
 
 st.caption(
-    "An activity is Non Value Added when it matches one of seven conditions: "
-    "excess walking (more than 5-10 steps), searching for tools at the workstation, "
-    "rework, idle time above 5 seconds, excess movement, speaking, or the operator "
-    "not being available at the workstation."
+    "An activity is Non Value Added when it matches one of eight conditions: "
+    "excess walking (more than 5-10 steps), searching for tools, materials or drawings, "
+    "rework, idle or waiting above 5 seconds (tools, materials, crane, co-workers), "
+    "taking or moving fixtures and templates, speaking or using a mobile phone, "
+    "worker not in station, or a non-productive task (PPE wearing, torch cleaning, "
+    "consumable refill / change, measuring)."
 )
 
 nva_breakdown = data.get("nva_breakdown", {}) or {}
@@ -608,7 +610,7 @@ v3.metric(
 )
 
 if not nva_categories:
-    st.success("No activity matched any of the seven NVA conditions.")
+    st.success("No activity matched any of the eight NVA conditions.")
 
 else:
     st.markdown("**Which condition cost the time**")

@@ -409,7 +409,7 @@ class TimeStudyLoader:
 
     def get_nva_category_table(self):
         """
-        NVA time rolled up by each of the seven conditions.
+        NVA time rolled up by each of the eight conditions.
         """
 
         columns = [

@@ -149,8 +149,7 @@ REPORT_HEADERS = [
 #
 #   1. How long did the job take, and how much of it was
 #      Value Added versus Non Value Added?
-#   2. Which of the seven NVA conditions cost the most time?
-#   3. WHICH ACTIVITIES are the NVA - the seven conditions with
+#   2. WHICH ACTIVITIES are the NVA - the eight conditions with
 #      a count of processes in each. Click a count to jump to
 #      the NVA Details sheet, which lists those processes.
 #
@@ -354,7 +353,7 @@ def _write_nva_details_sheet(
         sheet.cell(
             row=1,
             column=1,
-            value="No activity matched any of the seven NVA conditions."
+            value="No activity matched any of the eight NVA conditions."
         )
 
     for index, size in enumerate([16, 46, 16, 16, 16], start=1):
@@ -391,11 +390,6 @@ def write_overall_analysis_sheet(
 
     nva_activities = add_repeat_count(
         nva_breakdown.get("activities", []) or []
-    )
-
-    unrecorded_idle = round(
-        nva_breakdown.get("unrecorded_idle_seconds", 0) or 0,
-        3
     )
 
     total_time = round(overall.get("total_time_seconds", 0) or 0, 3)
@@ -457,99 +451,9 @@ def write_overall_analysis_sheet(
     row += 1
 
     # ------------------------------------------------------
-    # 2. NVA BY CONDITION
-    # ------------------------------------------------------
-
-    category_row = row
-
-    row = _section(
-        worksheet,
-        row,
-        "NVA BREAKDOWN - WHICH CONDITION COST THE TIME",
-        width
-    )
-
-    row = _head(
-        worksheet,
-        row,
-        [
-            "NVA Condition",
-            "What This Condition Means",
-            "Activities",
-            "NVA Time (sec)",
-            "% of NVA",
-            "% of Total Time"
-        ]
-    )
-
-    # Condition -> its "Activities" cell here, linked to the NVA list below
-    category_count_cells = {}
-
-    if categories:
-
-        for entry in categories:
-
-            seconds = round(entry.get("nva_seconds", 0) or 0, 3)
-
-            category_count_cells[entry.get("nva_category", "")] = (
-                worksheet.cell(row=row, column=3)
-            )
-
-            worksheet.cell(row=row, column=1, value=entry.get("nva_category", ""))
-            worksheet.cell(row=row, column=2, value=entry.get("definition", ""))
-            worksheet.cell(row=row, column=3, value=entry.get("activities", 0))
-            worksheet.cell(row=row, column=4, value=seconds)
-            worksheet.cell(row=row, column=5, value=f"{_percent(seconds, nva_time)}%")
-            worksheet.cell(row=row, column=6, value=f"{_percent(seconds, total_time)}%")
-
-            worksheet.cell(row=row, column=2).alignment = LEFT
-
-            row += 1
-
-        if unrecorded_idle > 0:
-
-            worksheet.cell(
-                row=row,
-                column=2,
-                value=(
-                    f"Of the idle time above, {unrecorded_idle} sec is time inside the "
-                    "study window that no activity was recorded for at all."
-                )
-            ).alignment = LEFT
-
-            row += 1
-
-        for column in range(1, 7):
-
-            cell = worksheet.cell(row=row, column=column)
-
-            cell.fill = TOTAL_FILL
-            cell.font = TOTAL_FONT
-
-        worksheet.cell(row=row, column=1, value="TOTAL NVA")
-        worksheet.cell(row=row, column=3, value=len(nva_activities))
-        worksheet.cell(row=row, column=4, value=nva_time)
-        worksheet.cell(row=row, column=5, value="100.0%")
-        worksheet.cell(row=row, column=6, value=f"{_percent(nva_time, total_time)}%")
-
-        row += 1
-
-    else:
-
-        worksheet.cell(
-            row=row,
-            column=1,
-            value="No non-value-added activity was detected in this video."
-        )
-
-        row += 1
-
-    row += 1
-
-    # ------------------------------------------------------
-    # 3. NVA ACTIVITIES - ONE ROW PER NVA CONDITION
+    # 2. NVA ACTIVITIES - ONE ROW PER NVA CONDITION
     #
-    # Each of the seven NVA conditions gets a row with the count
+    # Each of the eight NVA conditions gets a row with the count
     # of processes that fell into it (a repeated activity counts
     # every time it happens). Click the count to jump to the
     # "NVA Details" sheet, which lists those processes: Process
@@ -645,14 +549,8 @@ def write_overall_analysis_sheet(
 
         _link(count_cells[condition], location)
 
-        # The "Activities" count in the breakdown above jumps
-        # to the same place
-
-        if condition in category_count_cells:
-            _link(category_count_cells[condition], location)
-
     # ------------------------------------------------------
-    # 4. EVERY METRIC
+    # 3. EVERY METRIC
     # ------------------------------------------------------
 
     row = _section(worksheet, row, "OVERALL ANALYSIS - ALL METRICS", width)
@@ -687,7 +585,7 @@ def write_overall_analysis_sheet(
 
         _link(
             worksheet.cell(row=nva_row, column=2),
-            f"'{sheet_name}'!A{category_row}",
+            f"'{sheet_name}'!A{detail_row}",
             nva_time
         )
 

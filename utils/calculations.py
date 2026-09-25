@@ -283,7 +283,7 @@ def validate_activity(activity):
     activity.setdefault("end_timestamp", end_timestamp)
 
     # -----------------------------------
-    # NVA fields - filled by the seven
+    # NVA fields - filled by the eight
     # conditions in utils/nva_reasons.py
     # -----------------------------------
 
@@ -755,7 +755,7 @@ def calculate_operator_analysis(activities):
             utilisation = 0.0
 
         # --------------------------------------------
-        # NVA comes from the seven conditions on each
+        # NVA comes from the eight conditions on each
         # row, plus the time this operator has no
         # recorded activity for at all.
         # --------------------------------------------
@@ -829,7 +829,7 @@ def calculate_process_metrics(activities):
     """
     Calculate TOCT, NVA, R-NVA and VA for every individual process.
 
-    NVA is charged from the SEVEN CONDITIONS in utils/nva_reasons.py,
+    NVA is charged from the EIGHT CONDITIONS in utils/nva_reasons.py,
     not from the operation type alone. A 3 second pause or a 4 step
     walk carries no NVA - it is normal work.
 
@@ -863,7 +863,7 @@ def calculate_process_metrics(activities):
         activity["r_nva"] = 0.0
 
         # ----------------------------------------
-        # One of the seven conditions matched:
+        # One of the eight conditions matched:
         # the whole step is Non Value Added
         # ----------------------------------------
 
@@ -944,7 +944,7 @@ def calculate_overall_analysis(activities, operator_summary=None):
             0
         )
 
-        # NVA and VA come from the seven conditions, charged on
+        # NVA and VA come from the eight conditions, charged on
         # each row by calculate_process_metrics()
 
         total_nva += activity.get("nva", 0) or 0
@@ -1087,7 +1087,7 @@ def calculate_overall_analysis(activities, operator_summary=None):
 
     # --------------------------------------------------
     # VA  = every step no NVA condition matched
-    # NVA = every step one of the seven conditions
+    # NVA = every step one of the eight conditions
     #       matched, plus the time nobody was recorded
     #       doing anything at all
     # --------------------------------------------------
@@ -1305,7 +1305,7 @@ def calculate_time_study(data):
     )
 
     # -----------------------------------------
-    # Apply the SEVEN NVA CONDITIONS.
+    # Apply the EIGHT NVA CONDITIONS.
     #
     # This decides what is Non Value Added and
     # MUST run before the TOCT / NVA maths.

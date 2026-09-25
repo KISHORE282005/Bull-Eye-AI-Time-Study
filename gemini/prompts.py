@@ -19,7 +19,7 @@ where the person is standing - describe the operation, not the person.
 
 Start with the name of the operation, followed by " - ", then state:
   - the operation performed, with a precise verb (tightening, torquing, aligning,
-    seating, welding, grinding, inserting, routing, crimping, measuring, lifting ...),
+    seating, welding, grinding, inserting, routing, crimping, lifting ...),
   - the tool or equipment used, named exactly (pneumatic impact wrench, torque wrench,
     MIG welding torch, overhead crane hook and sling, rubber mallet ...), or "by hand",
   - the part or sub-assembly worked on, named exactly (chassis side bracket, boom
@@ -140,9 +140,9 @@ REQUIRED JSON SCHEMA:
     "productivity_opportunities": ["Only list visible layout or tooling improvements"]
 }
 
-WHAT COUNTS AS NON-VALUE-ADDED (NVA) - THE SEVEN CONDITIONS:
-An activity is NON-VALUE-ADDED when it matches ANY ONE of the seven conditions below.
-Set `nva_category` to the EXACT category string shown in quotes. These seven are the
+WHAT COUNTS AS NON-VALUE-ADDED (NVA) - THE EIGHT CONDITIONS:
+An activity is NON-VALUE-ADDED when it matches ANY ONE of the eight conditions below.
+Set `nva_category` to the EXACT category string shown in quotes. These eight are the
 only valid categories.
 
   1. "Excess walking"
@@ -152,35 +152,38 @@ only valid categories.
      inside the workstation is normal work, NOT NVA - leave `nva_category` empty for it.
 
   2. "Searching for tools"
-     The operator is hunting for a tool, fastener, fixture or material INSIDE their own
-     workstation: opening and rummaging through bins, lifting parts to look underneath,
-     scanning the bench, patting their pockets, checking the trolley.
+     The operator is searching for tools, materials, or documents / drawing files:
+     opening and rummaging through bins, lifting parts to look underneath, scanning the
+     bench, patting their pockets, flipping through drawings or files.
 
   3. "Rework"
      The operator repeats or corrects work that was already completed: loosening and
      redoing a joint, re-aligning a part that was already placed, re-welding, grinding
-     back a bad weld, re-inspecting, or fixing a defect.
+     back a bad weld, or fixing a defect.
 
   4. "Idle time"
-     The operator stands, waits, watches or does nothing productive for MORE THAN
-     5 SECONDS - waiting for a crane, for a part, for a machine cycle, for a colleague,
-     for an inspection. A pause of 5 seconds or less is a normal work pause, NOT NVA.
+     The operator stands idle, or waits for tools, materials, the crane or co-workers,
+     for MORE THAN 5 SECONDS. A pause of 5 seconds or less is a normal work pause, NOT NVA.
 
   5. "Excess movement"
-     Unnecessary motion at the workstation: over-reaching, stretching, repeated bending,
-     twisting the torso, shifting or re-gripping the same part more than once, stepping
-     around the part repeatedly, moving a tool from hand to hand.
+     The operator is taking or moving a fixture or a template instead of working on
+     the part.
 
   6. "Speaking"
-     The operator is talking, discussing, receiving instructions, arguing or using a
-     phone INSTEAD of working. Brief hand signals while still working are NOT NVA.
+     The operator is speaking or using a mobile phone INSTEAD of working. Brief hand
+     signals while still working are NOT NVA.
 
   7. "Operator not available"
-     The operator has LEFT the workstation and the station stands unmanned, or the
-     operator is absent from the frame while their part, machine or crane waits on them.
+     The worker is not in the station - the operator has left and the station stands
+     unmanned while their part, machine or crane waits on them.
+
+  8. "Non-productive task"
+     The operator is doing a support task instead of building the part: wearing PPE,
+     cleaning the welding gun / torch, refilling or changing a consumable (coil refill,
+     grinding wheel change, mirror replacement in shelling), or measuring.
 
 RULES FOR `nva_category`:
-- Use EXACTLY one of the seven strings above, spelled exactly as shown.
+- Use EXACTLY one of the eight strings above, spelled exactly as shown.
 - For genuinely productive work, set `nva_category` to "" (empty string).
 - If an activity matches more than one condition, pick the one that explains the
   BIGGEST loss of time.
@@ -188,51 +191,43 @@ RULES FOR `nva_category`:
 - Set `walking_steps` to the number of steps counted for any walking activity, and to
   0 for every other activity.
 
-POSSIBLE NVA CAUSES (use EXACTLY one of these for `nva_reason`):
-- Excessive walking
-- Material stored far from the workstation
-- Bolt, nut, or component located away from the operator
-- Worker searching for tools or materials
-- Waiting for material availability
-- Waiting for machine completion
-- Waiting for another operator
-- Waiting for supervisor approval
-- Machine downtime
-- Poor workstation layout
-- Poor ergonomics
-- Excess transportation
-- Unnecessary motion
-- Repeated trips to collect materials
-- Material replenishment delay
-- Incorrect material placement
-- Inventory shortage
-- Tool not available nearby
-- Tool change delay
-- Quality inspection waiting
-- Rework
-- Congestion in work area
-- Forklift traffic
-- Conveyor delay
-- Operator confusion
-- Missing components
-- Poor work instructions
-- Inefficient workflow
-- Lack of standardization
-- Poor 5S implementation
-- Safety clearance delay
-- Equipment malfunction
-- Communication delay
-- Operator not available at the workstation
-- Operator idle for more than 5 seconds
-- Excess body movement at the workstation
-- Talking or discussion instead of working
+NVA LIST (use EXACTLY one of these for `nva_reason`), grouped by condition:
+- "Searching for tools":
+    Searching tools
+    Searching materials
+    Searching documents / drawing file
+- "Rework":
+    Rework
+- "Idle time":
+    Idle above 5 seconds
+    Waiting for tools
+    Waiting for materials
+    Waiting for crane
+    Waiting for co-workers
+- "Excess movement":
+    Taking fixture
+    Taking template
+    Moving fixture
+    Moving template
+- "Speaking":
+    Speaking
+    Using mobile phone
+- "Operator not available":
+    Worker not in station
+- "Non-productive task":
+    PPE wearing
+    Welding gun / torch cleaning
+    Refill or change of consumables (coil refill, grinding wheel change, mirror replacement in shelling)
+    Measuring
+- "Excess walking":
+    Excess walking
 
 NVA REASON RULES:
 - For every activity you gave a non-empty `nva_category`, set `nva_reason` to the ONE
-  cause from the POSSIBLE NVA CAUSES list that best explains the visible loss. Pick the
-  most specific option.
+  entry from the NVA LIST, under that same condition, that best explains the visible
+  loss. Pick the most specific option.
 - For an activity with `nva_category` = "", set `nva_reason` to "".
-- Never invent a cause that is not on the list.
+- Never invent a reason that is not on the list.
 
 STRICT RULES:
 1. Identify each distinct assembly process sequentially and chronologically.
@@ -250,7 +245,7 @@ FINAL CHECK BEFORE ANSWERING:
   Any description that uses numbered steps or line breaks, mentions the operator
   number, or does not start with the operation name must be rewritten before you answer.
 - Does every activity carry an `nva_category` that is either "" or EXACTLY one of the
-  seven condition strings?
+  eight condition strings?
 - Did you leave `nva_category` empty for walks of 5 steps or fewer and pauses of
   5 seconds or less?
 - Count the distinct operators you tagged. Does it match `operator_count`?

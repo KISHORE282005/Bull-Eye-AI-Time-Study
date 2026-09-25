@@ -1,17 +1,21 @@
 # ============================================================
-# NVA RULES - THE SEVEN CONDITIONS
+# NVA RULES - THE EIGHT CONDITIONS
 # ============================================================
 #
 # An activity is Non Value Added when it matches ONE of these
-# seven conditions. Everything else is productive work.
+# eight conditions. Everything else is productive work.
 #
 #   1. Excess walking          - more than 5-10 steps
-#   2. Searching for tools     - hunting inside the workstation
+#   2. Searching for tools     - tools, materials, documents / drawings
 #   3. Rework                  - repeating or correcting work
-#   4. Idle time               - standing idle for over 5 seconds
-#   5. Excess movement         - unnecessary motion at the station
-#   6. Speaking                - talking instead of working
-#   7. Operator not available  - station left unmanned
+#   4. Idle time               - idle or waiting for over 5 seconds
+#   5. Excess movement         - taking / moving fixtures and templates
+#   6. Speaking                - talking or using a mobile phone
+#   7. Operator not available  - worker not in the station
+#   8. Non-productive task     - PPE, torch cleaning, refills, measuring
+#
+# Each condition is broken down into the plant's NVA list
+# (NVA_CAUSES below), which is what the report shows as the reason.
 #
 # The two thresholds below are the plant's tuning knobs. Change
 # them here and the whole report follows.
@@ -37,6 +41,7 @@ IDLE_TIME = "Idle time"
 EXCESS_MOVEMENT = "Excess movement"
 SPEAKING = "Speaking"
 OPERATOR_NOT_AVAILABLE = "Operator not available"
+NON_PRODUCTIVE_TASK = "Non-productive task"
 
 
 NVA_CATEGORIES = [
@@ -46,7 +51,8 @@ NVA_CATEGORIES = [
     IDLE_TIME,
     EXCESS_MOVEMENT,
     SPEAKING,
-    OPERATOR_NOT_AVAILABLE
+    OPERATOR_NOT_AVAILABLE,
+    NON_PRODUCTIVE_TASK
 ]
 
 
@@ -59,24 +65,132 @@ NVA_CATEGORY_DEFINITIONS = {
         "tool, rack or another workstation.",
 
     SEARCHING_FOR_TOOLS:
-        "Operator searched for a tool, fastener or material inside the workstation.",
+        "Operator searched for tools, materials, documents or drawing files.",
 
     REWORK:
         "Operator repeated or corrected work that was already completed.",
 
     IDLE_TIME:
-        f"Operator stood idle, waited or watched for more than "
-        f"{IDLE_NVA_THRESHOLD_SECONDS:.0f} seconds.",
+        f"Operator stood idle or waited for tools, materials, the crane or co-workers "
+        f"for more than {IDLE_NVA_THRESHOLD_SECONDS:.0f} seconds.",
 
     EXCESS_MOVEMENT:
-        "Unnecessary motion at the workstation - over-reaching, bending, twisting or "
-        "re-gripping the same part.",
+        "Operator took or moved a fixture or template instead of working on the part.",
 
     SPEAKING:
-        "Operator was talking, being instructed or on the phone instead of working.",
+        "Operator was speaking or using a mobile phone instead of working.",
 
     OPERATOR_NOT_AVAILABLE:
-        "Operator left the workstation and the station stood unmanned."
+        "Worker was not in the station and the station stood unmanned.",
+
+    NON_PRODUCTIVE_TASK:
+        "Operator wore PPE, cleaned the welding gun / torch, refilled or changed a "
+        "consumable, or measured instead of building the part."
+
+}
+
+
+# ============================================================
+# NVA CAUSES - THE PLANT'S NVA LIST
+# ============================================================
+
+IDLE_ABOVE_5_SEC = "Idle above 5 seconds"
+SEARCHING_TOOLS = "Searching tools"
+SEARCHING_MATERIALS = "Searching materials"
+SPEAKING_REASON = "Speaking"
+USING_MOBILE_PHONE = "Using mobile phone"
+WAITING_FOR_TOOLS = "Waiting for tools"
+WAITING_FOR_MATERIALS = "Waiting for materials"
+WAITING_FOR_CRANE = "Waiting for crane"
+TAKING_FIXTURE = "Taking fixture"
+TAKING_TEMPLATE = "Taking template"
+MOVING_FIXTURE = "Moving fixture"
+MOVING_TEMPLATE = "Moving template"
+REWORK_REASON = "Rework"
+PPE_WEARING = "PPE wearing"
+SEARCHING_DOCUMENTS = "Searching documents / drawing file"
+WAITING_FOR_CO_WORKERS = "Waiting for co-workers"
+WORKER_NOT_IN_STATION = "Worker not in station"
+TORCH_CLEANING = "Welding gun / torch cleaning"
+CONSUMABLE_CHANGE = (
+    "Refill or change of consumables "
+    "(coil refill, grinding wheel change, mirror replacement in shelling)"
+)
+MEASURING = "Measuring"
+
+
+NVA_CAUSES = [
+    IDLE_ABOVE_5_SEC,
+    SEARCHING_TOOLS,
+    SEARCHING_MATERIALS,
+    SPEAKING_REASON,
+    USING_MOBILE_PHONE,
+    WAITING_FOR_TOOLS,
+    WAITING_FOR_MATERIALS,
+    WAITING_FOR_CRANE,
+    TAKING_FIXTURE,
+    TAKING_TEMPLATE,
+    MOVING_FIXTURE,
+    MOVING_TEMPLATE,
+    REWORK_REASON,
+    PPE_WEARING,
+    SEARCHING_DOCUMENTS,
+    WAITING_FOR_CO_WORKERS,
+    WORKER_NOT_IN_STATION,
+    TORCH_CLEANING,
+    CONSUMABLE_CHANGE,
+    MEASURING
+]
+
+
+# Each NVA cause rolls up into one of the eight conditions, so a
+# reason supplied by the AI always lands in the right bucket.
+REASON_TO_CATEGORY = {
+
+    SEARCHING_TOOLS: SEARCHING_FOR_TOOLS,
+    SEARCHING_MATERIALS: SEARCHING_FOR_TOOLS,
+    SEARCHING_DOCUMENTS: SEARCHING_FOR_TOOLS,
+
+    REWORK_REASON: REWORK,
+
+    IDLE_ABOVE_5_SEC: IDLE_TIME,
+    WAITING_FOR_TOOLS: IDLE_TIME,
+    WAITING_FOR_MATERIALS: IDLE_TIME,
+    WAITING_FOR_CRANE: IDLE_TIME,
+    WAITING_FOR_CO_WORKERS: IDLE_TIME,
+
+    TAKING_FIXTURE: EXCESS_MOVEMENT,
+    TAKING_TEMPLATE: EXCESS_MOVEMENT,
+    MOVING_FIXTURE: EXCESS_MOVEMENT,
+    MOVING_TEMPLATE: EXCESS_MOVEMENT,
+
+    SPEAKING_REASON: SPEAKING,
+    USING_MOBILE_PHONE: SPEAKING,
+
+    WORKER_NOT_IN_STATION: OPERATOR_NOT_AVAILABLE,
+
+    PPE_WEARING: NON_PRODUCTIVE_TASK,
+    TORCH_CLEANING: NON_PRODUCTIVE_TASK,
+    CONSUMABLE_CHANGE: NON_PRODUCTIVE_TASK,
+    MEASURING: NON_PRODUCTIVE_TASK
+
+}
+
+
+# The cause written into the report when a condition was detected
+# from the video but the AI gave no usable reason of its own.
+# Excess walking has no entry on the plant's NVA list, so it is
+# reported under its own name.
+CATEGORY_DEFAULT_REASON = {
+
+    EXCESS_WALKING: "Excess walking",
+    SEARCHING_FOR_TOOLS: SEARCHING_TOOLS,
+    REWORK: REWORK_REASON,
+    IDLE_TIME: IDLE_ABOVE_5_SEC,
+    EXCESS_MOVEMENT: MOVING_FIXTURE,
+    SPEAKING: SPEAKING_REASON,
+    OPERATOR_NOT_AVAILABLE: WORKER_NOT_IN_STATION,
+    NON_PRODUCTIVE_TASK: MEASURING
 
 }
 
@@ -93,7 +207,8 @@ CATEGORY_KEYWORD_RULES = [
         "operator unavailable", "left the workstation", "leaves the workstation",
         "away from the workstation", "operator absent", "operator is absent",
         "out of frame", "unmanned", "station empty", "operator missing",
-        "not at the workstation", "left the station", "no operator at"
+        "not at the workstation", "left the station", "no operator at",
+        "not in station", "not in the station", "worker not in"
     ]),
 
     # 3. Rework
@@ -107,19 +222,49 @@ CATEGORY_KEYWORD_RULES = [
         "already completed", "was not correct", "second attempt"
     ]),
 
-    # 6. Speaking
+    # 6. Speaking / mobile phone
     (SPEAKING, [
         "talking", "talks", "speaking", "speaks", "conversation", "discussing",
         "discussion", "discusses", "chatting", "chat", "instructed", "instruction from",
         "asking", "asks a colleague", "phone", "mobile", "briefing", "explaining"
     ]),
 
-    # 2. Searching for tools
+    # 8. Non-productive task
+    (NON_PRODUCTIVE_TASK, [
+        "ppe", "wearing gloves", "wears gloves", "putting on gloves", "puts on gloves",
+        "wearing helmet", "wears helmet", "welding helmet on", "safety goggles",
+        "wearing the apron", "wearing apron", "torch cleaning", "cleaning the torch",
+        "cleans the torch", "gun cleaning", "cleaning the welding gun",
+        "cleans the welding gun", "nozzle cleaning", "cleaning the nozzle",
+        "coil refill", "wire refill", "refilling", "refills", "changing the coil",
+        "wire spool", "grinding wheel change", "changing the grinding wheel",
+        "changes the grinding wheel", "wheel change", "replacing the mirror",
+        "mirror replacement", "replaces the mirror", "consumable",
+        "measuring", "measures", "measurement", "measuring tape", "tape measure",
+        "vernier", "scale reading"
+    ]),
+
+    # 2. Searching for tools / materials / documents
     (SEARCHING_FOR_TOOLS, [
         "searching", "searches", "search", "looking for", "looks for", "hunting",
         "rummag", "find the tool", "finding the tool", "locate the tool",
         "tool not available", "tool missing", "checking the bin", "checks the bin",
         "opening bins", "scanning the bench", "pockets", "cannot find", "can not find"
+    ]),
+
+    # 5. Taking / moving fixtures and templates
+    (EXCESS_MOVEMENT, [
+        "taking fixture", "taking the fixture", "takes the fixture",
+        "taking template", "taking the template", "takes the template",
+        "picks up the fixture", "picking up the fixture",
+        "picks up the template", "picking up the template",
+        "moving fixture", "moving the fixture", "moves the fixture",
+        "moving template", "moving the template", "moves the template",
+        "carrying the fixture", "carries the fixture",
+        "carrying the template", "carries the template",
+        "over-reach", "overreach", "excess motion", "excessive motion",
+        "unnecessary motion", "unnecessary movement", "excess movement",
+        "excessive movement"
     ]),
 
     # 1. Excess walking
@@ -129,18 +274,7 @@ CATEGORY_KEYWORD_RULES = [
         "back and forth", "repeated trips", "fetch", "fetches"
     ]),
 
-    # 5. Excess movement
-    # Climbing and bending are often unavoidable on a machine this
-    # size, so only wording that calls the motion wasteful is listed.
-    (EXCESS_MOVEMENT, [
-        "over-reach", "overreach", "over reach", "excess motion",
-        "excessive motion", "unnecessary motion", "unnecessary movement",
-        "excess movement", "excessive movement", "repeated bending",
-        "repeatedly bends", "re-grip", "regrip", "shifts the part again",
-        "awkward posture", "awkward reach", "strains to reach"
-    ]),
-
-    # 4. Idle time
+    # 4. Idle / waiting
     (IDLE_TIME, [
         "idle", "waiting", "waits", "stands by", "standing by", "stood by",
         "watching", "watches", "does nothing", "doing nothing", "pause", "delay",
@@ -150,292 +284,109 @@ CATEGORY_KEYWORD_RULES = [
 ]
 
 
-# Each NVA cause rolls up into one of the seven conditions, so a
-# reason supplied by the AI always lands in the right bucket.
-REASON_TO_CATEGORY = {
-
-    "Excessive walking": EXCESS_WALKING,
-    "Material stored far from the workstation": EXCESS_WALKING,
-    "Excess transportation": EXCESS_WALKING,
-    "Repeated trips to collect materials": EXCESS_WALKING,
-
-    "Worker searching for tools or materials": SEARCHING_FOR_TOOLS,
-    "Tool not available nearby": SEARCHING_FOR_TOOLS,
-    "Tool change delay": SEARCHING_FOR_TOOLS,
-    "Bolt, nut, or component located away from the operator": SEARCHING_FOR_TOOLS,
-    "Missing components": SEARCHING_FOR_TOOLS,
-    "Poor 5S implementation": SEARCHING_FOR_TOOLS,
-
-    "Rework": REWORK,
-    "Incorrect material placement": REWORK,
-
-    "Waiting for material availability": IDLE_TIME,
-    "Waiting for machine completion": IDLE_TIME,
-    "Waiting for another operator": IDLE_TIME,
-    "Waiting for supervisor approval": IDLE_TIME,
-    "Quality inspection waiting": IDLE_TIME,
-    "Machine downtime": IDLE_TIME,
-    "Equipment malfunction": IDLE_TIME,
-    "Material replenishment delay": IDLE_TIME,
-    "Inventory shortage": IDLE_TIME,
-    "Conveyor delay": IDLE_TIME,
-    "Safety clearance delay": IDLE_TIME,
-    "Congestion in work area": IDLE_TIME,
-    "Forklift traffic": IDLE_TIME,
-    "Operator idle for more than 5 seconds": IDLE_TIME,
-
-    "Unnecessary motion": EXCESS_MOVEMENT,
-    "Poor ergonomics": EXCESS_MOVEMENT,
-    "Poor workstation layout": EXCESS_MOVEMENT,
-    "Inefficient workflow": EXCESS_MOVEMENT,
-    "Lack of standardization": EXCESS_MOVEMENT,
-    "Excess body movement at the workstation": EXCESS_MOVEMENT,
-
-    "Communication delay": SPEAKING,
-    "Operator confusion": SPEAKING,
-    "Poor work instructions": SPEAKING,
-    "Talking or discussion instead of working": SPEAKING,
-
-    "Operator not available at the workstation": OPERATOR_NOT_AVAILABLE
-
-}
-
-
-# The cause written into the report when a condition was detected
-# from the video but the AI gave no usable reason of its own.
-CATEGORY_DEFAULT_REASON = {
-
-    EXCESS_WALKING: "Excessive walking",
-    SEARCHING_FOR_TOOLS: "Worker searching for tools or materials",
-    REWORK: "Rework",
-    IDLE_TIME: "Operator idle for more than 5 seconds",
-    EXCESS_MOVEMENT: "Excess body movement at the workstation",
-    SPEAKING: "Talking or discussion instead of working",
-    OPERATOR_NOT_AVAILABLE: "Operator not available at the workstation"
-
-}
-
-
-# ============================================================
-# NVA CAUSES
-# ============================================================
-
-NVA_CAUSES = [
-    "Excessive walking",
-    "Material stored far from the workstation",
-    "Bolt, nut, or component located away from the operator",
-    "Worker searching for tools or materials",
-    "Waiting for material availability",
-    "Waiting for machine completion",
-    "Waiting for another operator",
-    "Waiting for supervisor approval",
-    "Machine downtime",
-    "Poor workstation layout",
-    "Poor ergonomics",
-    "Excess transportation",
-    "Unnecessary motion",
-    "Repeated trips to collect materials",
-    "Material replenishment delay",
-    "Incorrect material placement",
-    "Inventory shortage",
-    "Tool not available nearby",
-    "Tool change delay",
-    "Quality inspection waiting",
-    "Rework",
-    "Congestion in work area",
-    "Forklift traffic",
-    "Conveyor delay",
-    "Operator confusion",
-    "Missing components",
-    "Poor work instructions",
-    "Inefficient workflow",
-    "Lack of standardization",
-    "Poor 5S implementation",
-    "Safety clearance delay",
-    "Equipment malfunction",
-    "Communication delay",
-    "Operator not available at the workstation",
-    "Operator idle for more than 5 seconds",
-    "Excess body movement at the workstation",
-    "Talking or discussion instead of working"
-]
-
 # ============================================================
 # KEYWORD -> NVA REASON
 # ============================================================
+#
+# Picks the specific cause inside the detected condition.
+# A reason is only used when it belongs to that condition,
+# so the order here only matters within one condition.
 
 KEYWORD_RULES = [
-    ("rework", "Rework"),
-    ("re-do", "Rework"),
-    ("redo", "Rework"),
-    ("repeat tightening", "Rework"),
-    ("repeat assembly", "Rework"),
-    ("repeat inspection", "Rework"),
-    ("repeat work", "Rework"),
-    ("do it again", "Rework"),
-    ("correct", "Rework"),
-    ("reposition part", "Rework"),
-    ("repeat", "Rework"),
-    ("machine downtime", "Machine downtime"),
-    ("machine delay", "Machine downtime"),
-    ("equipment malfunction", "Equipment malfunction"),
-    ("equipment failure", "Equipment malfunction"),
-    ("breakdown", "Equipment malfunction"),
-    ("machine failure", "Equipment malfunction"),
-    ("machine completion", "Waiting for machine completion"),
-    ("waiting for machine", "Waiting for machine completion"),
-    ("waiting for machin", "Waiting for machine completion"),
-    ("machin", "Waiting for machine completion"),
-    ("cnc", "Waiting for machine completion"),
-    ("cycle complete", "Waiting for machine completion"),
-    ("waiting for material", "Waiting for material availability"),
-    ("material delay", "Waiting for material availability"),
-    ("material availability", "Waiting for material availability"),
-    ("waiting for part", "Waiting for material availability"),
-    ("part not arrived", "Waiting for material availability"),
-    ("material replenishment", "Material replenishment delay"),
-    ("replenish", "Material replenishment delay"),
-    ("restock", "Material replenishment delay"),
-    ("refill", "Material replenishment delay"),
-    ("inventory shortage", "Inventory shortage"),
-    ("shortage", "Inventory shortage"),
-    ("out of stock", "Inventory shortage"),
-    ("ran out", "Inventory shortage"),
-    ("missing component", "Missing components"),
-    ("missing part", "Missing components"),
-    ("component missing", "Missing components"),
-    ("part missing", "Missing components"),
-    ("waiting for another operator", "Waiting for another operator"),
-    ("waiting for other operator", "Waiting for another operator"),
-    ("waiting for co-worker", "Waiting for another operator"),
-    ("waiting for assistant", "Waiting for another operator"),
-    ("waiting for colleague", "Waiting for another operator"),
-    ("waiting for help", "Waiting for another operator"),
-    ("waiting for supervisor", "Waiting for supervisor approval"),
-    ("supervisor approval", "Waiting for supervisor approval"),
-    ("manager approval", "Waiting for supervisor approval"),
-    ("sign off", "Waiting for supervisor approval"),
-    ("quality inspection", "Quality inspection waiting"),
-    ("waiting for quality", "Quality inspection waiting"),
-    ("waiting for inspector", "Quality inspection waiting"),
-    ("waiting for qc", "Quality inspection waiting"),
-    ("waiting for qa", "Quality inspection waiting"),
-    ("tool not available", "Tool not available nearby"),
-    ("tool missing", "Tool not available nearby"),
-    ("searching tool", "Tool not available nearby"),
-    ("looking for tool", "Tool not available nearby"),
-    ("find tool", "Tool not available nearby"),
-    ("tool search", "Tool not available nearby"),
-    ("tool change", "Tool change delay"),
-    ("change tool", "Tool change delay"),
-    ("changing tool", "Tool change delay"),
-    ("tool replacement", "Tool change delay"),
-    ("swapping tool", "Tool change delay"),
-    ("searching", "Worker searching for tools or materials"),
-    ("looking for", "Worker searching for tools or materials"),
-    ("search", "Worker searching for tools or materials"),
-    ("looking", "Worker searching for tools or materials"),
-    ("search for", "Worker searching for tools or materials"),
-    ("find material", "Worker searching for tools or materials"),
-    ("conveyor", "Conveyor delay"),
-    ("forklift", "Forklift traffic"),
-    ("fork lift", "Forklift traffic"),
-    ("fork-lift", "Forklift traffic"),
-    ("congestion", "Congestion in work area"),
-    ("crowded", "Congestion in work area"),
-    ("blocked", "Congestion in work area"),
-    ("blocking", "Congestion in work area"),
-    ("obstruction", "Congestion in work area"),
-    ("traffic", "Congestion in work area"),
-    ("communication", "Communication delay"),
-    ("asking", "Communication delay"),
-    ("talking", "Communication delay"),
-    ("conversation", "Communication delay"),
-    ("discuss", "Communication delay"),
-    ("safety", "Safety clearance delay"),
-    ("clearance", "Safety clearance delay"),
-    ("guard", "Safety clearance delay"),
-    ("permit", "Safety clearance delay"),
-    ("confusion", "Operator confusion"),
-    ("confused", "Operator confusion"),
-    ("uncertain", "Operator confusion"),
-    ("hesitat", "Operator confusion"),
-    ("checking drawing", "Operator confusion"),
-    ("instruction", "Poor work instructions"),
-    ("drawing", "Poor work instructions"),
-    ("document", "Poor work instructions"),
-    ("manual", "Poor work instructions"),
-    ("procedure", "Poor work instructions"),
-    ("standardiz", "Lack of standardization"),
-    ("non-standard", "Lack of standardization"),
-    ("inconsistent", "Lack of standardization"),
-    ("5s", "Poor 5S implementation"),
-    ("5 s", "Poor 5S implementation"),
-    ("housekeeping", "Poor 5S implementation"),
-    ("clutter", "Poor 5S implementation"),
-    ("disorganized", "Poor 5S implementation"),
-    ("untidy", "Poor 5S implementation"),
-    ("messy", "Poor 5S implementation"),
-    ("clean", "Poor 5S implementation"),
-    ("inefficient", "Inefficient workflow"),
-    ("workflow", "Inefficient workflow"),
-    ("repetitive", "Inefficient workflow"),
-    ("incorrect material placement", "Incorrect material placement"),
-    ("misplaced", "Incorrect material placement"),
-    ("wrong position", "Incorrect material placement"),
-    ("misplacement", "Incorrect material placement"),
-    ("re-position", "Incorrect material placement"),
-    ("excess transportation", "Excess transportation"),
-    ("transportation", "Excess transportation"),
-    ("transport", "Excess transportation"),
-    ("trolley", "Excess transportation"),
-    ("cart", "Excess transportation"),
-    ("unnecessary motion", "Unnecessary motion"),
-    ("unnecessary movement", "Unnecessary motion"),
-    ("excess motion", "Unnecessary motion"),
-    ("extra reach", "Unnecessary motion"),
-    ("reach", "Unnecessary motion"),
-    ("stretch", "Unnecessary motion"),
-    ("repeated trips", "Repeated trips to collect materials"),
-    ("repeated trip", "Repeated trips to collect materials"),
-    ("collect material", "Repeated trips to collect materials"),
-    ("collecting material", "Repeated trips to collect materials"),
-    ("collect part", "Repeated trips to collect materials"),
-    ("fetch", "Repeated trips to collect materials"),
-    ("back and forth", "Repeated trips to collect materials"),
-    ("stored far", "Material stored far from the workstation"),
-    ("far from", "Material stored far from the workstation"),
-    ("distant", "Material stored far from the workstation"),
-    ("storage", "Material stored far from the workstation"),
-    ("remote rack", "Material stored far from the workstation"),
-    ("far away", "Material stored far from the workstation"),
-    ("bolt", "Bolt, nut, or component located away from the operator"),
-    ("nut", "Bolt, nut, or component located away from the operator"),
-    ("component located", "Bolt, nut, or component located away from the operator"),
-    ("hardware", "Bolt, nut, or component located away from the operator"),
-    ("located away", "Bolt, nut, or component located away from the operator"),
-    ("rack", "Bolt, nut, or component located away from the operator"),
-    ("bin", "Bolt, nut, or component located away from the operator"),
-    ("shelf", "Bolt, nut, or component located away from the operator"),
-    ("layout", "Poor workstation layout"),
-    ("workstation arrangement", "Poor workstation layout"),
-    ("workstation design", "Poor workstation layout"),
-    ("ergonom", "Poor ergonomics"),
-    ("posture", "Poor ergonomics"),
-    ("bend", "Poor ergonomics"),
-    ("awkward", "Poor ergonomics"),
-    ("excessive walking", "Excessive walking"),
-    ("walking", "Excessive walking"),
-    ("walk", "Excessive walking")
+
+    # Operator not available
+    ("not in station", WORKER_NOT_IN_STATION),
+    ("not in the station", WORKER_NOT_IN_STATION),
+    ("left the", WORKER_NOT_IN_STATION),
+    ("absent", WORKER_NOT_IN_STATION),
+    ("unmanned", WORKER_NOT_IN_STATION),
+
+    # Rework
+    ("rework", REWORK_REASON),
+
+    # Speaking / mobile phone
+    ("phone", USING_MOBILE_PHONE),
+    ("mobile", USING_MOBILE_PHONE),
+    ("talk", SPEAKING_REASON),
+    ("speak", SPEAKING_REASON),
+    ("discuss", SPEAKING_REASON),
+
+    # Non-productive tasks
+    ("ppe", PPE_WEARING),
+    ("glove", PPE_WEARING),
+    ("helmet", PPE_WEARING),
+    ("goggle", PPE_WEARING),
+    ("apron", PPE_WEARING),
+    ("torch", TORCH_CLEANING),
+    ("gun clean", TORCH_CLEANING),
+    ("welding gun", TORCH_CLEANING),
+    ("nozzle", TORCH_CLEANING),
+    ("coil", CONSUMABLE_CHANGE),
+    ("refill", CONSUMABLE_CHANGE),
+    ("spool", CONSUMABLE_CHANGE),
+    ("grinding wheel", CONSUMABLE_CHANGE),
+    ("wheel change", CONSUMABLE_CHANGE),
+    ("mirror", CONSUMABLE_CHANGE),
+    ("consumable", CONSUMABLE_CHANGE),
+    ("measur", MEASURING),
+    ("vernier", MEASURING),
+    ("tape", MEASURING),
+
+    # Searching
+    ("document", SEARCHING_DOCUMENTS),
+    ("drawing", SEARCHING_DOCUMENTS),
+    ("file", SEARCHING_DOCUMENTS),
+    ("material", SEARCHING_MATERIALS),
+    ("part", SEARCHING_MATERIALS),
+    ("component", SEARCHING_MATERIALS),
+    ("bolt", SEARCHING_MATERIALS),
+    ("nut", SEARCHING_MATERIALS),
+    ("tool", SEARCHING_TOOLS),
+    ("spanner", SEARCHING_TOOLS),
+    ("wrench", SEARCHING_TOOLS),
+
+    # Fixtures and templates
+    ("taking fixture", TAKING_FIXTURE),
+    ("taking the fixture", TAKING_FIXTURE),
+    ("takes the fixture", TAKING_FIXTURE),
+    ("picks up the fixture", TAKING_FIXTURE),
+    ("picking up the fixture", TAKING_FIXTURE),
+    ("taking template", TAKING_TEMPLATE),
+    ("taking the template", TAKING_TEMPLATE),
+    ("takes the template", TAKING_TEMPLATE),
+    ("picks up the template", TAKING_TEMPLATE),
+    ("picking up the template", TAKING_TEMPLATE),
+    ("template", MOVING_TEMPLATE),
+    ("fixture", MOVING_FIXTURE),
+
+    # Idle / waiting
+    ("crane", WAITING_FOR_CRANE),
+    ("hoist", WAITING_FOR_CRANE),
+    ("co-worker", WAITING_FOR_CO_WORKERS),
+    ("coworker", WAITING_FOR_CO_WORKERS),
+    ("colleague", WAITING_FOR_CO_WORKERS),
+    ("another operator", WAITING_FOR_CO_WORKERS),
+    ("other operator", WAITING_FOR_CO_WORKERS),
+    ("helper", WAITING_FOR_CO_WORKERS),
+    ("waiting for tool", WAITING_FOR_TOOLS),
+    ("waits for tool", WAITING_FOR_TOOLS),
+    ("waiting for the tool", WAITING_FOR_TOOLS),
+    ("waiting for material", WAITING_FOR_MATERIALS),
+    ("waits for material", WAITING_FOR_MATERIALS),
+    ("waiting for the material", WAITING_FOR_MATERIALS),
+    ("waiting for part", WAITING_FOR_MATERIALS),
+    ("waiting for the part", WAITING_FOR_MATERIALS),
+    ("idle", IDLE_ABOVE_5_SEC)
+
 ]
 
 # ============================================================
-# NVA CATEGORY - THE SEVEN CONDITIONS
+# NVA CATEGORY - THE EIGHT CONDITIONS
 # ============================================================
 
 def activity_text(activity):
     """
-    What the AI observed in the video, lower-cased, so the seven
+    What the AI observed in the video, lower-cased, so the eight
     conditions can be matched against it.
 
     `nva_reason` is deliberately left out: it is a generic label and
@@ -476,7 +427,7 @@ def estimated_steps(activity):
 
 def assign_nva_category(activity):
     """
-    Decide which of the seven NVA conditions an activity falls under.
+    Decide which of the eight NVA conditions an activity falls under.
 
     Returns "" when the activity is productive work - including a short
     walk of 5 steps or fewer and a short pause of 5 seconds or less,
@@ -606,7 +557,7 @@ def assign_nva_category(activity):
 def assign_nva_categories(activities):
     """
     Tag every activity with its NVA condition and mark whether it is
-    Non Value Added. Runs before the TOCT / NVA maths so the seven
+    Non Value Added. Runs before the TOCT / NVA maths so the eight
     conditions decide what gets charged as NVA.
     """
 
@@ -638,7 +589,7 @@ def assign_nva_reason(activity):
     process_description. Returns '' for value-added activities.
 
     Runs after assign_nva_categories(), so an activity is only given a
-    cause when one of the seven conditions actually flagged it.
+    cause when one of the eight conditions actually flagged it.
     """
 
     category = str(
