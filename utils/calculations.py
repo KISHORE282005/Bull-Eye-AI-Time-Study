@@ -834,11 +834,42 @@ def calculate_process_metrics(activities):
     walk carries no NVA - it is normal work.
 
     Must run AFTER assign_nva_categories().
+
+    When the AI gives one operator two rows that overlap in time, the
+    overlapping seconds are only charged once (to the earlier row), so
+    an operator's VA + NVA can never exceed the time they were watched.
     """
 
-    for activity in activities:
+    # Latest end time charged so far, per operator
+    charged_until = {}
 
-        duration = round(activity.get("duration", 0) or 0, 3)
+    for activity in sorted(
+        activities,
+        key=lambda a: timestamp_to_seconds(
+            a.get("start_timestamp", "00:00:00.000")
+        )
+    ):
+
+        start = timestamp_to_seconds(
+            activity.get("start_timestamp", "00:00:00.000")
+        )
+
+        end = timestamp_to_seconds(
+            activity.get("end_timestamp", "00:00:00.000")
+        )
+
+        operator = activity.get("operator_index", 1)
+
+        already = charged_until.get(operator, start)
+
+        duration = round(max(0.0, end - max(start, already)), 3)
+
+        charged_until[operator] = max(already, end)
+
+        activity["overlap_seconds"] = round(
+            max(0.0, (activity.get("duration", 0) or 0) - duration),
+            3
+        )
 
         activity_type = activity.get(
             "activity_type",
@@ -853,8 +884,9 @@ def calculate_process_metrics(activities):
         # Reset values
         # ----------------------------------------
 
-        # TOCT is the total observed cycle time of the step and
-        # always carries the full duration.
+        # TOCT is the total observed cycle time of the step: its
+        # duration, less any seconds already charged to an
+        # overlapping earlier row of the same operator.
 
         activity["toct"] = duration
 
@@ -1090,11 +1122,27 @@ def calculate_overall_analysis(activities, operator_summary=None):
     # NVA = every step one of the eight conditions
     #       matched, plus the time nobody was recorded
     #       doing anything at all
+    #
+    # Every operator is timed over the SAME study window,
+    # so adding operators together gives person-time
+    # (2 operators x 27 min = 54 min), which can never be
+    # compared with the 27 min video. VA and NVA are
+    # reported per operator (the average), so that
+    # VA + NVA = Total Time. The person-time is kept
+    # alongside for reference.
     # --------------------------------------------------
 
-    total_nva = round(total_nva + gap_time, 3)
+    person_nva = round(total_nva + gap_time, 3)
 
-    total_va = round(total_va, 3)
+    person_va = round(total_va, 3)
+
+    overall["va_person_time"] = person_va
+
+    overall["nva_person_time"] = person_nva
+
+    total_nva = round(person_nva / operator_count, 3)
+
+    total_va = round(person_va / operator_count, 3)
 
     overall["estimated_value_added_time"] = total_va
 

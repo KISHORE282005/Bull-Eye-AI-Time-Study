@@ -380,7 +380,18 @@ def write_overall_analysis_sheet(
 
     nva_time = round(overall.get("estimated_non_value_added_time", 0) or 0, 3)
 
-    rework_time = round(overall.get("rework_time", 0) or 0, 3)
+    operators = max(int(overall.get("operator_count", 1) or 1), 1)
+
+    # VA / NVA arrive per operator (VA + NVA = Total Time); R-NVA is
+    # summed over every operator, so bring it onto the same basis.
+    rework_time = round((overall.get("rework_time", 0) or 0) / operators, 3)
+
+    # The NVA Activities table lists every operator's rows, so its
+    # total is the NVA of all operators together.
+    nva_all_operators = round(
+        overall.get("nva_person_time", nva_time * operators) or 0,
+        3
+    )
 
     accounted = round(va_time + nva_time, 3)
 
@@ -542,9 +553,13 @@ def write_overall_analysis_sheet(
         cell.fill = TOTAL_FILL
         cell.font = TOTAL_FONT
 
-    worksheet.cell(row=row, column=1, value="TOTAL NVA")
+    worksheet.cell(
+        row=row,
+        column=1,
+        value="TOTAL NVA" if operators == 1 else f"TOTAL NVA - ALL {operators} OPERATORS"
+    )
     worksheet.cell(row=row, column=3, value=len(nva_activities))
-    worksheet.cell(row=row, column=4, value=nva_time)
+    worksheet.cell(row=row, column=4, value=nva_all_operators)
 
     row += 2
 
