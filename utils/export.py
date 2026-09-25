@@ -7,7 +7,11 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.worksheet.hyperlink import Hyperlink
 from openpyxl.utils import get_column_letter
 
-from utils.nva_reasons import NVA_CATEGORIES
+from utils.nva_reasons import (
+    NVA_CAUSES,
+    CATEGORY_DEFAULT_REASON,
+    IDLE_TIME
+)
 
 
 # ==========================================================
@@ -145,12 +149,12 @@ REPORT_HEADERS = [
 # OVERALL ANALYSIS SHEET
 # ==========================================================
 #
-# One sheet that answers three questions:
+# One sheet that answers two questions:
 #
 #   1. How long did the job take, and how much of it was
 #      Value Added versus Non Value Added?
-#   2. WHICH ACTIVITIES are the NVA - the eight conditions with
-#      a count of processes in each. Click a count to jump to
+#   2. WHICH NVA happened in this video - each item from the
+#      plant's NVA list that occurred, with a count of processes. Click a count to jump to
 #      the NVA Details sheet, which lists those processes.
 #
 # The NVA figure at the top is a link. Click it and Excel
@@ -262,17 +266,17 @@ NVA_DETAILS_SHEET = "NVA Details"
 
 def _write_nva_details_sheet(
     overall_sheet,
-    members_by_condition,
+    members_by_nva,
     list_row,
     time_study_sheet,
     time_study_rows
 ):
     """
     Build the NVA Details sheet next to the Overall Analysis sheet:
-    one block per NVA condition that has processes, listing Process
+    one block per NVA that happened in the video, listing Process
     No, Process Name, Start / End Time and NVA sec.
 
-    Returns {condition: first row of its block}, so the counts on
+    Returns {nva: first row of its block}, so the counts on
     the Overall Analysis sheet can link straight to it.
     """
 
@@ -294,17 +298,17 @@ def _write_nva_details_sheet(
 
     targets = {}
 
-    for condition, members in members_by_condition.items():
+    for nva, members in members_by_nva.items():
 
         if not members:
             continue
 
-        targets[condition] = row
+        targets[nva] = row
 
         row = _section(
             sheet,
             row,
-            f"{condition.upper()} - {len(members)} "
+            f"{nva.upper()} - {len(members)} "
             f"{'PROCESS' if len(members) == 1 else 'PROCESSES'}",
             width
         )
@@ -386,8 +390,6 @@ def write_overall_analysis_sheet(
 
     sheet_name = worksheet.title
 
-    categories = nva_breakdown.get("by_category", []) or []
-
     nva_activities = add_repeat_count(
         nva_breakdown.get("activities", []) or []
     )
@@ -453,11 +455,13 @@ def write_overall_analysis_sheet(
     # ------------------------------------------------------
     # 2. NVA ACTIVITIES - ONE ROW PER NVA CONDITION
     #
-    # Each of the eight NVA conditions gets a row with the count
-    # of processes that fell into it (a repeated activity counts
-    # every time it happens). Click the count to jump to the
-    # "NVA Details" sheet, which lists those processes: Process
-    # No, Process Name, timestamps and NVA sec.
+    # Only the NVA that actually happened in THIS video is listed,
+    # one row per item on the plant's NVA list (e.g. "Waiting for
+    # crane") with the condition it belongs to and the count of
+    # processes (a repeated activity counts every time it happens).
+    # Click the count to jump to the "NVA Details" sheet, which
+    # lists those processes: Process No, Process Name, timestamps
+    # and NVA sec.
     # ------------------------------------------------------
 
     detail_row = row
@@ -465,60 +469,93 @@ def write_overall_analysis_sheet(
     row = _section(
         worksheet,
         row,
-        "NVA ACTIVITIES - CLICK THE COUNT TO SEE THE PROCESSES",
+        "NVA ACTIVITIES IN THIS VIDEO - CLICK THE COUNT TO SEE THE PROCESSES",
         width
     )
 
     row = _head(
         worksheet,
         row,
-        ["NVA Condition", "Count", "NVA Time (sec)"]
+        ["NVA", "NVA Condition", "Count", "NVA Time (sec)"]
     )
 
-    seconds_by_category = {
-        entry.get("nva_category", ""): round(entry.get("nva_seconds", 0) or 0, 3)
-        for entry in categories
-    }
+    members_by_reason = {}
 
-    members_by_condition = {
-        condition: sorted(
-            (
-                entry for entry in nva_activities
-                if entry.get("nva_category", "") == condition
-            ),
-            key=lambda entry: entry.get("process_no", 0) or 0
+    condition_of_reason = {}
+
+    for entry in sorted(
+        nva_activities,
+        key=lambda entry: entry.get("process_no", 0) or 0
+    ):
+
+        condition = entry.get("nva_category", "")
+
+        reason = (
+            str(entry.get("nva_reason", "") or "").strip()
+            or CATEGORY_DEFAULT_REASON.get(condition, condition)
         )
-        for condition in NVA_CATEGORIES
-    }
+
+        members_by_reason.setdefault(reason, []).append(entry)
+
+        condition_of_reason.setdefault(reason, condition)
+
+    # Plant's NVA list order first, anything else after it
+    members_by_reason = dict(
+        sorted(
+            members_by_reason.items(),
+            key=lambda item: (
+                NVA_CAUSES.index(item[0])
+                if item[0] in NVA_CAUSES
+                else len(NVA_CAUSES)
+            )
+        )
+    )
 
     count_cells = {}
 
-    for condition in NVA_CATEGORIES:
+    if not members_by_reason:
 
-        members = members_by_condition[condition]
-
-        seconds = seconds_by_category.get(
-            condition,
-            round(sum(entry.get("nva", 0) or 0 for entry in members), 3)
-        )
-
-        worksheet.cell(row=row, column=1, value=condition)
-        worksheet.cell(row=row, column=3, value=seconds)
-
-        count_cells[condition] = worksheet.cell(
+        worksheet.cell(
             row=row,
-            column=2,
-            value=len(members)
+            column=1,
+            value="No non-value-added activity was detected in this video."
         )
-
-        if members:
-
-            worksheet.cell(row=row, column=1).font = NVA_FONT
-            worksheet.cell(row=row, column=3).font = NVA_FONT
 
         row += 1
 
-    for column in range(1, 4):
+    for reason, members in members_by_reason.items():
+
+        seconds = round(sum(entry.get("nva", 0) or 0 for entry in members), 3)
+
+        worksheet.cell(row=row, column=1, value=reason).font = NVA_FONT
+        worksheet.cell(row=row, column=2, value=condition_of_reason[reason])
+        worksheet.cell(row=row, column=4, value=seconds).font = NVA_FONT
+
+        worksheet.cell(row=row, column=1).alignment = LEFT
+
+        count_cells[reason] = worksheet.cell(
+            row=row,
+            column=3,
+            value=len(members)
+        )
+
+        row += 1
+
+    unrecorded_idle = round(
+        nva_breakdown.get("unrecorded_idle_seconds", 0) or 0,
+        3
+    )
+
+    if unrecorded_idle > 0:
+
+        worksheet.cell(row=row, column=1, value="Unrecorded idle time").font = NVA_FONT
+        worksheet.cell(row=row, column=2, value=IDLE_TIME)
+        worksheet.cell(row=row, column=3, value="-")
+        worksheet.cell(row=row, column=4, value=unrecorded_idle).font = NVA_FONT
+
+        row += 1
+
+    for column in range(1, 5):
 
         cell = worksheet.cell(row=row, column=column)
 
@@ -526,8 +563,8 @@ def write_overall_analysis_sheet(
         cell.font = TOTAL_FONT
 
     worksheet.cell(row=row, column=1, value="TOTAL NVA")
-    worksheet.cell(row=row, column=2, value=len(nva_activities))
-    worksheet.cell(row=row, column=3, value=nva_time)
+    worksheet.cell(row=row, column=3, value=len(nva_activities))
+    worksheet.cell(row=row, column=4, value=nva_time)
 
     row += 2
 
@@ -537,17 +574,17 @@ def write_overall_analysis_sheet(
 
     details = _write_nva_details_sheet(
         worksheet,
-        members_by_condition,
+        members_by_reason,
         list_row=detail_row,
         time_study_sheet=time_study_sheet,
         time_study_rows=time_study_rows
     )
 
-    for condition, target in details.items():
+    for reason, target in details.items():
 
         location = f"'{NVA_DETAILS_SHEET}'!A{target}"
 
-        _link(count_cells[condition], location)
+        _link(count_cells[reason], location)
 
     # ------------------------------------------------------
     # 3. EVERY METRIC
