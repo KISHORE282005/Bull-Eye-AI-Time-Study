@@ -179,26 +179,6 @@ LEFT = Alignment(horizontal="left", vertical="top", wrap_text=True)
 CENTER = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
 
-# Pretty names for the raw overall_analysis keys
-OVERALL_LABELS = {
-    "total_time_seconds": "Total Time (sec)",
-    "cycle_time_seconds": "Cycle Time (sec)",
-    "operator_count": "Operators",
-    "operator_working_time": "Operator Working Time (sec)",
-    "walking_time": "Walking Time (sec)",
-    "operator_waiting_time": "Operator Waiting Time (sec)",
-    "rework_time": "Required NVA Time (sec)",
-    "operator_idle_time": "Operator Idle Time (sec)",
-    "unaccounted_idle_time": "Unrecorded Idle Time (sec)",
-    "inspection_time": "Inspection Time (sec)",
-    "estimated_value_added_time": "Value Added (VA) Time (sec)",
-    "estimated_non_value_added_time": "Non Value Added (NVA) Time (sec)",
-    "value_added_percent": "Value Added (VA) %",
-    "non_value_added_percent": "Non Value Added (NVA) %",
-    "average_operator_utilisation_percent": "Average Operator Utilisation %"
-}
-
-
 def _percent(part, whole):
     """part as a percentage of whole, safe when whole is zero."""
 
@@ -594,19 +574,43 @@ def write_overall_analysis_sheet(
 
     row = _head(worksheet, row, ["Metric", "Value"])
 
-    for key, value in overall.items():
+    # Per day output over an 8-hour shift:
+    #   VA      = (60 / VA time in min) * 8
+    #   Overall = (60 / (VA + NVA) time in min) * 8
 
-        worksheet.cell(row=row, column=1, value=OVERALL_LABELS.get(key, key))
+    va_minutes = va_time / 60
+
+    overall_minutes = (va_time + nva_time) / 60
+
+    va_output = round((60 / va_minutes) * 8, 2) if va_minutes else 0
+
+    overall_output = round((60 / overall_minutes) * 8, 2) if overall_minutes else 0
+
+    metrics = [
+        ("Total Time (sec)", total_time),
+        ("Total Time (min)", round(total_time / 60, 3)),
+        ("Value Added (VA) Time (sec)", va_time),
+        ("Non Value Added (NVA) Time (sec)", nva_time),
+        ("Required NVA (R-NVA) Time (sec)", rework_time),
+        ("Operators", overall.get("operator_count", 1)),
+        ("VA Utilisation %", overall.get("value_added_percent", _percent(va_time, accounted))),
+        ("NVA Utilisation %", overall.get("non_value_added_percent", _percent(nva_time, accounted))),
+        ("Cycle Time (sec)", round(overall.get("cycle_time_seconds", total_time) or 0, 3)),
+        ("Per Day Output - VA  (60 / VA min) x 8", va_output),
+        ("Per Day Output - Overall  (60 / (VA + NVA) min) x 8", overall_output)
+    ]
+
+    for label, value in metrics:
+
+        worksheet.cell(row=row, column=1, value=label)
         worksheet.cell(row=row, column=2, value=value)
 
+        if label.startswith("Per Day Output"):
+
+            worksheet.cell(row=row, column=1).font = TOTAL_FONT
+            worksheet.cell(row=row, column=2).font = TOTAL_FONT
+
         row += 1
-
-        if key == "total_time_seconds":
-
-            worksheet.cell(row=row, column=1, value="Total Time (min)")
-            worksheet.cell(row=row, column=2, value=round((value or 0) / 60, 3))
-
-            row += 1
 
     # ------------------------------------------------------
     # Make the NVA headline clickable
