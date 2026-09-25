@@ -596,8 +596,8 @@ def write_overall_analysis_sheet(
         ("VA Utilisation %", overall.get("value_added_percent", _percent(va_time, accounted))),
         ("NVA Utilisation %", overall.get("non_value_added_percent", _percent(nva_time, accounted))),
         ("Cycle Time (sec)", round(overall.get("cycle_time_seconds", total_time) or 0, 3)),
-        ("Per Day Output - VA  (60 / VA min) x 8", va_output),
-        ("Per Day Output - Overall  (60 / (VA + NVA) min) x 8", overall_output)
+        ("Per Day Output -  va_output),
+        ("Per Day Output -  overall_output)
     ]
 
     for label, value in metrics:
